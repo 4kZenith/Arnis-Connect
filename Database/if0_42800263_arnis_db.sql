@@ -18,6 +18,33 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
+-- --------------------------------------------------------
+-- WIPE: Drop all tables first so pasting this dump into an existing
+-- database starts clean. Foreign key checks are disabled during the drop
+-- so order doesn't matter, then re-enabled before any CREATE.
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `email_verification_tokens`;
+DROP TABLE IF EXISTS `settings`;
+DROP TABLE IF EXISTS `registration_requests`;
+DROP TABLE IF EXISTS `event_participants`;
+DROP TABLE IF EXISTS `event_documents`;
+DROP TABLE IF EXISTS `events`;
+DROP TABLE IF EXISTS `attendance_checkins`;
+DROP TABLE IF EXISTS `attendance`;
+DROP TABLE IF EXISTS `achievements`;
+DROP TABLE IF EXISTS `rank_verification_history`;
+DROP TABLE IF EXISTS `rank_history`;
+DROP TABLE IF EXISTS `funds`;
+DROP TABLE IF EXISTS `trainings`;
+DROP TABLE IF EXISTS `members`;
+DROP TABLE IF EXISTS `users`;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- --------------------------------------------------------
+
 --
 -- Database: `if0_42800263_arnis_db`
 --
@@ -27,7 +54,6 @@ SET time_zone = "+00:00";
 --
 -- Table structure for table `achievements`
 --
-
 CREATE TABLE `achievements` (
   `achievement_id` int(11) NOT NULL,
   `member_id` int(11) NOT NULL,
