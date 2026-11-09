@@ -200,11 +200,3 @@ if (isset($_GET['error']) && is_string($_GET['error'])) {
 
 </body>
 </html>
-/*
-* Login Page
-* @author: John Carlo M. Dela Cruz
-* @date: 2023-11-28
-* @version: 1.0
-* @description: This is the login page of the system.
-* @note: This is the login page of the system.
-*/
