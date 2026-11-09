@@ -1,0 +1,4 @@
+Options -Indexes
+<FilesMatch "^(database\.local\.php|Database\.php|permissions\.php|roles\.php|session\.php)$">
+    Require all denied
+</FilesMatch>

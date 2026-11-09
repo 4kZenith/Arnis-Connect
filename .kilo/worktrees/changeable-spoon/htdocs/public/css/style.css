@@ -1,0 +1,35 @@
+body{
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    }
+.bg-dark-purple {
+    background-color: #1d212a;
+}
+.card-bg { 
+    background-color: #292c31; 
+}
+.bg-accent-purple{
+    background-image: linear-gradient(to right, #bf44c8 , #f323ff);
+}
+select.card-bg {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1.25rem center;
+    background-size: 1em;
+    padding-right: 3.5rem !important;
+    cursor: pointer;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #20202d;
+}
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
