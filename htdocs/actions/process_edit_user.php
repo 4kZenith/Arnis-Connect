@@ -122,6 +122,12 @@ try {
                 throw new InvalidArgumentException('Invalid role selected.');
             }
             if ($newRole !== $target['role']) {
+                // Super Administrator role is constant and cannot be changed
+                if ($target['role'] === 'SuperAdmin') {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'message' => 'The Super Administrator role cannot be changed.']);
+                    exit;
+                }
                 if ($target['role'] === 'SuperAdmin'
                     && (int)$target['is_active'] === 1
                     && $newRole !== 'SuperAdmin'

@@ -124,6 +124,10 @@ $memberFieldPermissions = [
     'status' => $canManageStatus,
     'member_type' => $canManagePrivileged,
     'payment_notes' => $canManagePrivileged,
+    'player_category' => $canManagePrivileged,
+    'full_name' => !($isOwnProfile && $writeScope === 'own'),
+    'dob' => !($isOwnProfile && $writeScope === 'own'),
+    'is_member_self' => ($isOwnProfile && $writeScope === 'own'),
 ];
 
 /* Filters that were previously dead <select>/<input> controls with no handler. */

@@ -153,6 +153,12 @@ try {
         exit;
     }
 
+    // Members editing themselves: full name and DOB are read-only (ignored)
+    if ($isSelf && $writeScope === 'own') {
+        $fullName = (string)($existing['full_name'] ?? $fullName);
+        $dob = (string)($existing['dob'] ?? $dob);
+    }
+
     $canManagePrivileged = (!$isSelf && $writeScope === true);
     $canManageStatus = (!$isSelf && in_array($writeScope, [true, 'own_trainees'], true));
 
@@ -180,12 +186,7 @@ try {
         echo json_encode(['success' => false, 'message' => 'Player category cannot be changed here.']);
         exit;
     }
-    $currentTrainingPreference = (string)($existing['training_preference'] ?? 'Group');
-    if (!$canManagePrivileged && $trainingPreference !== $currentTrainingPreference) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Training preference cannot be changed here.']);
-        exit;
-    }
+    // Training preference is editable by members (self) and staff; no extra restriction needed.
     if (!$canManageStatus && $status !== $currentStatus) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'You cannot change your own or another member\'s status.']);

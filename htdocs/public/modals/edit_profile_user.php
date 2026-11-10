@@ -24,18 +24,12 @@
 
             <div class="col-span-1">
                 <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">System Role</label>
-                <div class="relative">
-                    <select class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none text-white appearance-none cursor-pointer border border-transparent focus:border-blue-500" name="role" id="edit_u_role" <?php echo ($_SESSION['role'] ?? '') !== 'SuperAdmin' ? 'disabled' : ''; ?>>
-                        <?php
-                        /* Canonical 5-role model from config/roles.php — the
-                         * hardcoded list still offered retired Committee /
-                         * Board Member roles. */
-                        $epfRoles = (array)($roles ?? require __DIR__ . '/../../config/roles.php');
-                        foreach ($epfRoles as $epfRoleKey => $epfRoleMeta): ?>
-                        <option value="<?= htmlspecialchars((string)$epfRoleKey, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars((string)($epfRoleMeta['label'] ?? $epfRoleKey), ENT_QUOTES, 'UTF-8') ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="w-full bg-[#1d212a]/60 rounded-xl px-4 py-4 text-sm text-gray-300 border border-gray-800">
+                    <?= htmlspecialchars((string)($_SESSION['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
                 </div>
+                <input type="hidden" name="role" id="edit_u_role" value="<?= htmlspecialchars((string)($_SESSION['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                <p class="text-[8px] text-gray-500 mt-2 italic">* System role cannot be changed here.</p>
+            </div>
                 <p class="text-[8px] text-gray-500 mt-2 italic">* Contact administrator to change user role</p>
             </div>
 

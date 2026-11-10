@@ -534,7 +534,9 @@ try {
     try {
         $auditWhere = '';
         $auditParams = [];
-        if (!hasRole('SuperAdmin')) {
+        // Admin/Head Coach/Officer/Coach see all activity; only Member/Applicant see own
+        $staffRoles = ['SuperAdmin', 'Head Coach', 'Officer', 'Coach/Trainer'];
+        if (!in_array(currentUserRole(), $staffRoles, true)) {
             $auditWhere = ' WHERE user_id = :uid';
             $auditParams[':uid'] = $userId;
         }

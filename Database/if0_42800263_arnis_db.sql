@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: sql303.infinityfree.com
--- Generation Time: Oct 31, 2026 at 07:59 PM
+-- Generation Time: Nov 10, 2026 at 04:52 AM
 -- Server version: 11.4.13-MariaDB
 -- PHP Version: 7.2.22
 
@@ -18,42 +18,38 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
--- --------------------------------------------------------
--- WIPE: Drop all tables first so pasting this dump into an existing
--- database starts clean. Foreign key checks are disabled during the drop
--- so order doesn't matter, then re-enabled before any CREATE.
+-- ============================================================================
+-- TEST RESET: drop all tables first so this dump can be re-imported cleanly
+-- (wipes all existing tables and data before recreating them)
+-- ============================================================================
 SET FOREIGN_KEY_CHECKS = 0;
-
+DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `members`;
+DROP TABLE IF EXISTS `trainings`;
+DROP TABLE IF EXISTS `events`;
+DROP TABLE IF EXISTS `event_participants`;
+DROP TABLE IF EXISTS `attendance`;
+DROP TABLE IF EXISTS `attendance_checkins`;
+DROP TABLE IF EXISTS `settings`;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `email_verification_tokens`;
-DROP TABLE IF EXISTS `settings`;
-DROP TABLE IF EXISTS `registration_requests`;
-DROP TABLE IF EXISTS `event_participants`;
-DROP TABLE IF EXISTS `event_documents`;
-DROP TABLE IF EXISTS `events`;
-DROP TABLE IF EXISTS `attendance_checkins`;
-DROP TABLE IF EXISTS `attendance`;
-DROP TABLE IF EXISTS `achievements`;
-DROP TABLE IF EXISTS `rank_verification_history`;
 DROP TABLE IF EXISTS `rank_history`;
+DROP TABLE IF EXISTS `rank_verification_history`;
+DROP TABLE IF EXISTS `registration_requests`;
 DROP TABLE IF EXISTS `funds`;
-DROP TABLE IF EXISTS `trainings`;
-DROP TABLE IF EXISTS `members`;
-DROP TABLE IF EXISTS `users`;
-
-SET FOREIGN_KEY_CHECKS = 1;
+DROP TABLE IF EXISTS `event_documents`;
+DROP TABLE IF EXISTS `announcements`;
+DROP TABLE IF EXISTS `achievements`;
 
 -- --------------------------------------------------------
-
---
 -- Database: `if0_42800263_arnis_db`
---
-
+-- --------------------------------------------------------
 -- --------------------------------------------------------
 
 --
 -- Table structure for table `achievements`
 --
+
 CREATE TABLE `achievements` (
   `achievement_id` int(11) NOT NULL,
   `member_id` int(11) NOT NULL,
@@ -80,6 +76,24 @@ INSERT INTO `achievements` (`achievement_id`, `member_id`, `event_id`, `achievem
 (3, 12, 4, 'Gold', 'City', 'Senior Men Division champion', '2026-09-21', 0, NULL, NULL, NULL, 1, '2026-09-25 10:10:00'),
 (4, 5, 2, 'Recognition', 'School', 'Lead performer at school demo night', '2026-10-05', 0, NULL, NULL, NULL, 2, '2026-10-05 20:30:00'),
 (5, 8, 4, 'Silver', 'Regional', 'Runner-up in regional exhibition match', '2026-09-30', 0, NULL, NULL, NULL, 2, '2026-10-01 09:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `announcements`
+--
+
+CREATE TABLE `announcements` (
+  `announcement_id` int(11) NOT NULL,
+  `title` varchar(150) NOT NULL,
+  `body` text NOT NULL,
+  `audience` enum('All','Members','Coaches','Officers') NOT NULL DEFAULT 'All',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `is_archived` tinyint(1) NOT NULL DEFAULT 0,
+  `email_sent_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -133,7 +147,8 @@ INSERT INTO `attendance` (`attendance_id`, `training_id`, `member_id`, `status`,
 (23, 8, 6, 'Present', NULL, 2, '2026-10-08 15:05:00', 0, NULL, NULL, NULL, NULL, '2026-10-08 15:05:00'),
 (24, 8, 8, 'Present', NULL, 2, '2026-10-08 15:05:00', 0, NULL, NULL, NULL, NULL, '2026-10-08 15:05:00'),
 (25, 8, 11, 'Present', NULL, 2, '2026-10-08 15:05:00', 0, NULL, NULL, NULL, NULL, '2026-10-08 15:05:00'),
-(26, 8, 12, 'Late', 'Arrived after warm-up', 2, '2026-10-08 15:30:00', 0, NULL, NULL, NULL, NULL, '2026-10-08 15:30:00');
+(26, 8, 12, 'Late', 'Arrived after warm-up', 2, '2026-10-08 15:30:00', 0, NULL, NULL, NULL, NULL, '2026-10-08 15:30:00'),
+(27, 2, 14, 'Absent', NULL, 1, '2026-11-08 18:19:18', 0, NULL, NULL, NULL, 1, '2026-11-08 18:20:05');
 
 -- --------------------------------------------------------
 
@@ -166,6 +181,42 @@ INSERT INTO `attendance_checkins` (`checkin_id`, `training_id`, `member_id`, `me
 (4, 7, 8, 'Manual', NULL, NULL, 'Present', 1, 'Low confidence - coach override', 2, '2026-10-10 15:20:00'),
 (5, 8, 4, 'FaceGPS', '0.9176', 18, 'Present', 0, NULL, 4, '2026-10-08 15:05:00'),
 (6, 8, 6, 'FaceGPS', '0.8744', 55, 'Present', 0, NULL, 7, '2026-10-08 15:06:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `audit_logs`
+--
+
+CREATE TABLE `audit_logs` (
+  `id` int(11) UNSIGNED NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `actor_name` varchar(100) NOT NULL DEFAULT 'System',
+  `actor_role` varchar(50) DEFAULT NULL,
+  `action` varchar(50) NOT NULL,
+  `module` varchar(50) NOT NULL,
+  `target_table` varchar(50) DEFAULT NULL,
+  `target_id` int(11) DEFAULT NULL,
+  `description` varchar(500) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `email_verification_tokens`
+--
+
+CREATE TABLE `email_verification_tokens` (
+  `id` int(11) UNSIGNED NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `token` varchar(100) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -375,7 +426,13 @@ INSERT INTO `members` (`member_id`, `full_name`, `dob`, `email`, `height`, `weig
 (9, 'Bea Navarro', '2005-08-30', 'bea.navarro@arnis.test', '161.00', '52.00', '09171234513', 'Banilad, Cebu City', 'Cebu Institute of Technology', 'Gemma Navarro', '09171234520', 'Private student - pays training fee.', 'V. Brown Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Private', 'Private', 'On Leave', NULL, 1, 1, '2026-09-25 11:00:00', '2026-09-25 11:00:00', 0, NULL, NULL, NULL, NULL),
 (10, 'Karl Mendoza', '2012-04-10', 'karl.mendoza@arnis.test', '145.00', '38.00', '09171234514', 'Labogon, Mandaue City', 'Labogon Elementary School', 'Felipe Mendoza', '09171234515', 'Public player applicant - free / school-based training.', 'I. White Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Public', 'Group', 'Inactive', NULL, 1, 1, '2026-09-28 09:40:00', '2026-09-28 09:40:00', 0, NULL, NULL, NULL, NULL),
 (11, 'Trisha Villanueva', '2011-06-25', 'trisha.villanueva@arnis.test', '150.00', '41.00', '09171234516', 'Umapad, Mandaue City', 'Umapad Elementary School', 'Cynthia Villanueva', '09171234517', 'Public player applicant - free / school-based training.', 'None', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Public', 'Group', 'Active', NULL, 1, 1, '2026-10-01 07:30:00', '2026-10-01 07:30:00', 0, NULL, NULL, NULL, NULL),
-(12, 'Diego Fernandez', '1998-05-11', 'diego.fernandez@arnis.test', '180.00', '82.00', '09171234518', 'North Reclamation, Cebu City', 'University of San Carlos', NULL, NULL, 'Mixed player applicant - may join public and private sessions.', 'VI. Black Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Mixed', 'Flexible', 'Active', NULL, 1, 15, '2026-10-02 15:15:00', '2026-10-17 14:58:16', 0, NULL, NULL, NULL, '[-0.08572076261043548583984375,0.07390008866786956787109375,0.074464507400989532470703125,-0.0256911776959896087646484375,-0.02461901120841503143310546875,-0.101185940206050872802734375,-0.074551545083522796630859375,-0.10860021412372589111328125,0.129699766635894775390625,-0.078828014433383941650390625,0.2697302401065826416015625,-0.03982533514499664306640625,-0.17048059403896331787109375,-0.098095335066318511962890625,-0.004632334224879741668701171875,0.1672925055027008056640625,-0.2104995250701904296875,-0.072374574840068817138671875,-0.059231169521808624267578125,0.0055011198855936527252197265625,0.072178252041339874267578125,-0.01186644099652767181396484375,0.02911433391273021697998046875,0.014608667232096195220947265625,-0.0737164318561553955078125,-0.324733316898345947265625,-0.1281853616237640380859375,-0.0496040619909763336181640625,0.039669930934906005859375,-0.0360969193279743194580078125,-0.0586502738296985626220703125,-0.02340782992541790008544921875,-0.2773043215274810791015625,-0.0822976529598236083984375,0.014898289926350116729736328125,0.05754385888576507568359375,-0.02464990317821502685546875,-0.066298924386501312255859375,0.1575425565242767333984375,-0.0095173530280590057373046875,-0.18311642110347747802734375,0.01367810927331447601318359375,0.02480297721922397613525390625,0.1890480816364288330078125,0.1758340895175933837890625,0.0823941528797149658203125,0.00531087629497051239013671875,-0.14253346621990203857421875,0.0811299979686737060546875,-0.1173290312290191650390625,0.067941129207611083984375,0.151218116283416748046875,0.080844275653362274169921875,0.09270898997783660888671875,-0.004382939077913761138916015625,-0.104420281946659088134765625,0.0446981601417064666748046875,0.109140150249004364013671875,-0.11182324588298797607421875,0.003067950718104839324951171875,0.095065735280513763427734375,-0.07889319956302642822265625,-0.0152536816895008087158203125,-0.0698603689670562744140625,0.28229939937591552734375,0.0846853554248809814453125,-0.1242136061191558837890625,-0.19569052755832672119140625,0.098479352891445159912109375,-0.1021533906459808349609375,-0.085122056305408477783203125,0.030725501477718353271484375,-0.1303555071353912353515625,-0.140211999416351318359375,-0.3550239503383636474609375,0.036002404987812042236328125,0.381875693798065185546875,0.040446929633617401123046875,-0.23689158260822296142578125,0.06218831241130828857421875,-0.11142282187938690185546875,-0.023967616260051727294921875,0.1589584648609161376953125,0.17677216231822967529296875,0.0253097154200077056884765625,0.02986103110015392303466796875,-0.088909626007080078125,-0.0249753333628177642822265625,0.21628582477569580078125,-0.071867994964122772216796875,-0.0307921729981899261474609375,0.18137137591838836669921875,-0.05406059324741363525390625,0.06904654204845428466796875,0.001188409631140530109405517578125,-0.0053713009692728519439697265625,-0.06995566189289093017578125,0.0399686805903911590576171875,-0.073575317859649658203125,-0.0090847313404083251953125,0.047768138349056243896484375,0.007749850861728191375732421875,-0.0365366898477077484130859375,0.1263808906078338623046875,-0.113236717879772186279296875,0.093490861356258392333984375,0.036007039248943328857421875,0.0427531413733959197998046875,0.07011877000331878662109375,0.00829342193901538848876953125,-0.099524684250354766845703125,-0.14428858458995819091796875,0.0612795650959014892578125,-0.263632237911224365234375,0.2779872417449951171875,0.1356862485408782958984375,-0.000792977749370038509368896484375,0.110007233917713165283203125,0.0850644409656524658203125,0.180157184600830078125,-0.031439863145351409912109375,0.04171453416347503662109375,-0.1865811049938201904296875,-0.011669893749058246612548828125,0.078765571117401123046875,0.02437148801982402801513671875,0.10008768737316131591796875,-0.00182088674046099185943603515625]');
+(12, 'Diego Fernandez', '1998-05-11', 'diego.fernandez@arnis.test', '180.00', '82.00', '09171234518', 'North Reclamation, Cebu City', 'University of San Carlos', NULL, NULL, 'Mixed player applicant - may join public and private sessions.', 'VI. Black Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Mixed', 'Flexible', 'Active', NULL, 1, 15, '2026-10-02 15:15:00', '2026-10-17 14:58:16', 0, NULL, NULL, NULL, '[-0.08572076261043548583984375,0.07390008866786956787109375,0.074464507400989532470703125,-0.0256911776959896087646484375,-0.02461901120841503143310546875,-0.101185940206050872802734375,-0.074551545083522796630859375,-0.10860021412372589111328125,0.129699766635894775390625,-0.078828014433383941650390625,0.2697302401065826416015625,-0.03982533514499664306640625,-0.17048059403896331787109375,-0.098095335066318511962890625,-0.004632334224879741668701171875,0.1672925055027008056640625,-0.2104995250701904296875,-0.072374574840068817138671875,-0.059231169521808624267578125,0.0055011198855936527252197265625,0.072178252041339874267578125,-0.01186644099652767181396484375,0.02911433391273021697998046875,0.014608667232096195220947265625,-0.0737164318561553955078125,-0.324733316898345947265625,-0.1281853616237640380859375,-0.0496040619909763336181640625,0.039669930934906005859375,-0.0360969193279743194580078125,-0.0586502738296985626220703125,-0.02340782992541790008544921875,-0.2773043215274810791015625,-0.0822976529598236083984375,0.014898289926350116729736328125,0.05754385888576507568359375,-0.02464990317821502685546875,-0.066298924386501312255859375,0.1575425565242767333984375,-0.0095173530280590057373046875,-0.18311642110347747802734375,0.01367810927331447601318359375,0.02480297721922397613525390625,0.1890480816364288330078125,0.1758340895175933837890625,0.0823941528797149658203125,0.00531087629497051239013671875,-0.14253346621990203857421875,0.0811299979686737060546875,-0.1173290312290191650390625,0.067941129207611083984375,0.151218116283416748046875,0.080844275653362274169921875,0.09270898997783660888671875,-0.004382939077913761138916015625,-0.104420281946659088134765625,0.0446981601417064666748046875,0.109140150249004364013671875,-0.11182324588298797607421875,0.003067950718104839324951171875,0.095065735280513763427734375,-0.07889319956302642822265625,-0.0152536816895008087158203125,-0.0698603689670562744140625,0.28229939937591552734375,0.0846853554248809814453125,-0.1242136061191558837890625,-0.19569052755832672119140625,0.098479352891445159912109375,-0.1021533906459808349609375,-0.085122056305408477783203125,0.030725501477718353271484375,-0.1303555071353912353515625,-0.140211999416351318359375,-0.3550239503383636474609375,0.036002404987812042236328125,0.381875693798065185546875,0.040446929633617401123046875,-0.23689158260822296142578125,0.06218831241130828857421875,-0.11142282187938690185546875,-0.023967616260051727294921875,0.1589584648609161376953125,0.17677216231822967529296875,0.0253097154200077056884765625,0.02986103110015392303466796875,-0.088909626007080078125,-0.0249753333628177642822265625,0.21628582477569580078125,-0.071867994964122772216796875,-0.0307921729981899261474609375,0.18137137591838836669921875,-0.05406059324741363525390625,0.06904654204845428466796875,0.001188409631140530109405517578125,-0.0053713009692728519439697265625,-0.06995566189289093017578125,0.0399686805903911590576171875,-0.073575317859649658203125,-0.0090847313404083251953125,0.047768138349056243896484375,0.007749850861728191375732421875,-0.0365366898477077484130859375,0.1263808906078338623046875,-0.113236717879772186279296875,0.093490861356258392333984375,0.036007039248943328857421875,0.0427531413733959197998046875,0.07011877000331878662109375,0.00829342193901538848876953125,-0.099524684250354766845703125,-0.14428858458995819091796875,0.0612795650959014892578125,-0.263632237911224365234375,0.2779872417449951171875,0.1356862485408782958984375,-0.000792977749370038509368896484375,0.110007233917713165283203125,0.0850644409656524658203125,0.180157184600830078125,-0.031439863145351409912109375,0.04171453416347503662109375,-0.1865811049938201904296875,-0.011669893749058246612548828125,0.078765571117401123046875,0.02437148801982402801513671875,0.10008768737316131591796875,-0.00182088674046099185943603515625]'),
+(13, 'Sophia Fernandez', '2009-11-02', 'sophia.fernandez@example.com', NULL, NULL, '09956667788', 'Maribago, Lapu Lapu City', 'Cebu Doctors University', NULL, NULL, 'Private student - pays training fee.', 'III. Green Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Private', 'Private', 'Active', NULL, 1, NULL, '2026-11-08 18:04:15', '2026-11-08 18:04:15', 0, NULL, NULL, NULL, NULL),
+(14, 'Feygie S. Partosa', '2008-10-16', 'feygiepartosa827@gmail.com', NULL, NULL, '09927854750', 'Sitio San Jose Maguikay Mandaue City, Cebu', 'Maguikay National Highschool', 'Mila Siglos', '09927854751', 'Public player applicant - free / school-based training.', 'None', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Public', 'Group', 'Active', NULL, 1, 17, '2026-11-08 18:04:20', '2026-11-08 18:05:52', 0, NULL, NULL, NULL, '[-0.07303501665592193603515625,0.13532291352748870849609375,0.0428583808243274688720703125,-0.01412512175738811492919921875,-0.02174762822687625885009765625,-0.0551053173840045928955078125,-0.0503817684948444366455078125,-0.14327196776866912841796875,0.1299849450588226318359375,-0.0610242895781993865966796875,0.2783514559268951416015625,-0.05972929298877716064453125,-0.1995907723903656005859375,-0.097697637975215911865234375,-0.041032254695892333984375,0.1800881326198577880859375,-0.21058590710163116455078125,-0.0611726678907871246337890625,-0.0567332021892070770263671875,-0.02243888564407825469970703125,0.081389509141445159912109375,0.002641417086124420166015625,0.01919163949787616729736328125,0.0295670889317989349365234375,-0.0525901354849338531494140625,-0.2619974613189697265625,-0.09923227131366729736328125,-0.07160545885562896728515625,0.036712639033794403076171875,-0.040988080203533172607421875,-0.0420366190373897552490234375,0.00387568189762532711029052734375,-0.230425357818603515625,-0.0783915817737579345703125,-0.0042128623463213443756103515625,0.0256488732993602752685546875,-0.008321202360093593597412109375,-0.062873728573322296142578125,0.20535890758037567138671875,-0.011994429863989353179931640625,-0.16268731653690338134765625,0.025991670787334442138671875,0.012562678195536136627197265625,0.23335100710391998291015625,0.1832474172115325927734375,0.045720987021923065185546875,-0.0039454135112464427947998046875,-0.18679024279117584228515625,0.1043197810649871826171875,-0.14995332062244415283203125,0.059939317405223846435546875,0.1591176092624664306640625,0.092708252370357513427734375,0.08473987877368927001953125,-0.0465557985007762908935546875,-0.117318682372570037841796875,0.012054912745952606201171875,0.0764092504978179931640625,-0.1086111366748809814453125,0.0159514844417572021484375,0.127724111080169677734375,-0.066364467144012451171875,-0.0361118577420711517333984375,-0.121256716549396514892578125,0.2576288282871246337890625,0.07694236934185028076171875,-0.134576320648193359375,-0.18265412747859954833984375,0.084072969853878021240234375,-0.102932639420032501220703125,-0.105491332709789276123046875,0.0577370561659336090087890625,-0.1265210807323455810546875,-0.16104204952716827392578125,-0.3556906878948211669921875,0.0588376186788082122802734375,0.39278209209442138671875,0.08418385684490203857421875,-0.239829003810882568359375,0.027623228728771209716796875,-0.13618193566799163818359375,-0.006715995259582996368408203125,0.1677449047565460205078125,0.144893109798431396484375,-0.0037747030146420001983642578125,0.00826324336230754852294921875,-0.081254370510578155517578125,-0.02033507265150547027587890625,0.22110913693904876708984375,-0.096333287656307220458984375,-0.063875086605548858642578125,0.2374126017093658447265625,-0.037242971360683441162109375,0.07267905771732330322265625,-0.01475465297698974609375,0.0320092849433422088623046875,-0.036683164536952972412109375,0.05531753599643707275390625,-0.089669384062290191650390625,0.000337233417667448520660400390625,0.08540697395801544189453125,-0.03084676899015903472900390625,0.00790419243276119232177734375,0.12740661203861236572265625,-0.14741440117359161376953125,0.1036078035831451416015625,0.02530576474964618682861328125,0.073710389435291290283203125,0.100369818508625030517578125,-0.0080181173980236053466796875,-0.1405598223209381103515625,-0.10182474553585052490234375,0.1498328745365142822265625,-0.24036705493927001953125,0.24042914807796478271484375,0.119932763278484344482421875,0.0137423239648342132568359375,0.10157023370265960693359375,0.1387704908847808837890625,0.20687891542911529541015625,-0.0484926812350749969482421875,-0.00202359235845506191253662109375,-0.1930189430713653564453125,-0.005149648524820804595947265625,0.1245442330837249755859375,0.042645566165447235107421875,0.10096170008182525634765625,0.011646091006696224212646484375]'),
+(1001, 'Test Head Coach', '1985-01-10', 'headcoach1@test.local', '170.00', '70.00', '09170001001', 'Mandaue City', NULL, NULL, NULL, 'Staff account', 'VI. Black Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Head Coach', 'Mixed', 'Group', 'Active', NULL, NULL, NULL, '2026-11-10 01:23:25', '2026-11-10 01:49:17', 0, NULL, NULL, NULL, NULL),
+(1002, 'Test Coach', '1990-03-15', 'coach1@test.local', '168.00', '65.00', '09170001002', 'Mandaue City', NULL, NULL, NULL, 'Staff account', 'III. Green Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Coach', 'Mixed', 'Group', 'Active', NULL, NULL, NULL, '2026-11-10 01:23:25', '2026-11-10 01:49:17', 0, NULL, NULL, NULL, NULL),
+(1003, 'Test Member One', '2005-06-20', 'member1@test.local', '160.00', '55.00', '09170001003', 'Mandaue City', 'Test School', 'Guardian One', '09170009999', 'Public player', 'I. White Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Public', 'Group', 'Active', NULL, NULL, NULL, '2026-11-10 01:23:25', '2026-11-10 01:49:17', 0, NULL, NULL, NULL, NULL),
+(1004, 'Test Member Two', '2004-08-12', 'member2@test.local', '162.00', '58.00', '09170001004', 'Cebu City', NULL, 'Guardian Two', '09170009998', 'Private player', 'II. Yellow Belt', 'None', 'Pending Verification', NULL, NULL, NULL, 'Player', 'Private', 'Flexible', 'Active', NULL, NULL, NULL, '2026-11-10 01:23:25', '2026-11-10 01:49:17', 0, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -467,13 +524,43 @@ CREATE TABLE `registration_requests` (
 -- Dumping data for table `registration_requests`
 --
 
-INSERT INTO `registration_requests` (`request_id`, `full_name`, `dob`, `email`, `username`, `contact_number`, `address`, `player_category`, `training_preference`, `affiliated_school`, `prev_organization`, `prev_instructor`, `rank_awarded_year`, `rank_evidence_path`, `guardian_name`, `guardian_contact`, `payment_notes`, `requested_rank`, `status`, `submitted_at`, `reviewed_at`, `reviewed_by`, `review_notes`, `rank_verification_status`, `rank_verified_by`, `rank_verified_at`, `rank_verification_method`, `rank_verification_notes`, `contact_ok`, `member_id`, `user_id`) VALUES
-(1, 'Juan Delgado', '2011-05-20', 'juan.delgado@example.com', 'applicant.juan', '09951112233', '723 Mabolo St, Cebu City', 'Public', 'Group', 'P. Dela Salle Elementary', NULL, NULL, NULL, NULL, 'Elena Delgado', '09951112234', 'Public player applicant - free / school-based training.', 'I. White Belt', 'Rejected', '2026-10-08 09:15:00', '2026-10-10 10:58:09', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL),
-(2, 'Giana Reyes', '2010-03-14', 'giana.reyes@example.com', 'member.giana', '09953334455', '114 San Jose St, Mandaue City', 'Public', 'Group', 'Maguikay Elementary', NULL, NULL, NULL, NULL, 'Marissa Reyes', '09953334456', 'Public player applicant - free / school-based training.', 'None', 'Approved', '2026-09-20 10:00:00', '2026-09-22 14:30:00', 1, 'Guardian verified by phone', 'Pending Verification', NULL, NULL, NULL, NULL, 0, 7, 8),
-(3, 'Noah Sabellano', '2012-08-08', 'noah.sabellano@example.com', NULL, '09954445566', '88 Bakilid St, Mandaue City', 'Public', 'Group', 'Basak Elementary', NULL, NULL, NULL, NULL, NULL, NULL, 'Public player applicant - free / school-based training.', 'None', 'Rejected', '2026-10-02 08:45:00', '2026-10-04 09:10:00', 1, 'Guardian could not be reached', 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL),
-(4, 'Sophia Fernandez', '2009-11-02', 'sophia.fernandez@example.com', NULL, '09956667788', 'Maribago, Lapu Lapu City', 'Private', 'Private', 'Cebu Doctors University', NULL, NULL, NULL, 'uploads/rank_evidence/rank_16_20261017173151_0d34e7f8.png', NULL, NULL, 'Private student - pays training fee.', 'III. Green Belt', 'Pending', '2026-10-09 14:05:00', NULL, NULL, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, 16),
-(5, 'Christ Jhon Denver Partosa', '2004-12-04', 'christpartosa9@gmail.com', 'testuser123', '09999999', NULL, 'Public', 'Group', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Public player applicant - free / school-based training.', 'None', 'Rejected', '2026-10-10 19:59:04', '2026-10-10 20:26:45', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL),
-(6, 'Lebron James', '2004-12-04', 'Lebron9@gmail.com', 'lebron9', '0999999', 'Sitio San Jose Maguikay Mandaue City, Cebu', 'Mixed', 'Flexible', 'Maguikay National Highschool', NULL, NULL, NULL, NULL, 'Michael Jordan', '09999999', 'Mixed player: joins both public and private session', 'VI. Black Belt', 'Rejected', '2026-10-10 20:24:58', '2026-10-10 20:26:50', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL);
+INSERT INTO `registration_requests` (`request_id`, `full_name`, `dob`, `email`, `username`, `contact_number`, `address`, `player_category`, `training_preference`, `affiliated_school`, `prev_organization`, `prev_instructor`, `rank_awarded_year`, `rank_evidence_path`, `guardian_name`, `guardian_contact`, `payment_notes`, `requested_rank`, `status`, `submitted_at`, `reviewed_at`, `reviewed_by`, `review_notes`, `rank_verification_status`, `rank_verified_by`, `rank_verified_at`, `rank_verification_method`, `rank_verification_notes`, `contact_ok`, `privacy_consent_at`, `member_id`, `user_id`) VALUES
+(1, 'Juan Delgado', '2011-05-20', 'juan.delgado@example.com', 'applicant.juan', '09951112233', '723 Mabolo St, Cebu City', 'Public', 'Group', 'P. Dela Salle Elementary', NULL, NULL, NULL, NULL, 'Elena Delgado', '09951112234', 'Public player applicant - free / school-based training.', 'I. White Belt', 'Rejected', '2026-10-08 09:15:00', '2026-10-10 10:58:09', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL),
+(2, 'Giana Reyes', '2010-03-14', 'giana.reyes@example.com', 'member.giana', '09953334455', '114 San Jose St, Mandaue City', 'Public', 'Group', 'Maguikay Elementary', NULL, NULL, NULL, NULL, 'Marissa Reyes', '09953334456', 'Public player applicant - free / school-based training.', 'None', 'Approved', '2026-09-20 10:00:00', '2026-09-22 14:30:00', 1, 'Guardian verified by phone', 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, 7, 8),
+(3, 'Noah Sabellano', '2012-08-08', 'noah.sabellano@example.com', NULL, '09954445566', '88 Bakilid St, Mandaue City', 'Public', 'Group', 'Basak Elementary', NULL, NULL, NULL, NULL, NULL, NULL, 'Public player applicant - free / school-based training.', 'None', 'Rejected', '2026-10-02 08:45:00', '2026-10-04 09:10:00', 1, 'Guardian could not be reached', 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL),
+(4, 'Sophia Fernandez', '2009-11-02', 'sophia.fernandez@example.com', NULL, '09956667788', 'Maribago, Lapu Lapu City', 'Private', 'Private', 'Cebu Doctors University', NULL, NULL, NULL, 'uploads/rank_evidence/rank_16_20261017173151_0d34e7f8.png', NULL, NULL, 'Private student - pays training fee.', 'III. Green Belt', 'Approved', '2026-10-09 14:05:00', '2026-11-08 18:04:15', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, 13, 16),
+(5, 'Christ Jhon Denver Partosa', '2004-12-04', 'christpartosa9@gmail.com', 'testuser123', '09999999', NULL, 'Public', 'Group', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Public player applicant - free / school-based training.', 'None', 'Rejected', '2026-10-10 19:59:04', '2026-10-10 20:26:45', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL),
+(6, 'Lebron James', '2004-12-04', 'Lebron9@gmail.com', 'lebron9', '0999999', 'Sitio San Jose Maguikay Mandaue City, Cebu', 'Mixed', 'Flexible', 'Maguikay National Highschool', NULL, NULL, NULL, NULL, 'Michael Jordan', '09999999', 'Mixed player: joins both public and private session', 'VI. Black Belt', 'Rejected', '2026-10-10 20:24:58', '2026-10-10 20:26:50', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL),
+(7, 'Feygie S. Partosa', '2008-10-16', 'feygiepartosa827@gmail.com', 'fpart016', '09927854750', 'Sitio San Jose Maguikay Mandaue City, Cebu', 'Public', 'Group', 'Maguikay National Highschool', NULL, NULL, NULL, NULL, 'Mila Siglos', '09927854751', 'Public player applicant - free / school-based training.', 'None', 'Approved', '2026-11-08 17:56:38', '2026-11-08 18:04:20', 1, NULL, 'Pending Verification', NULL, NULL, NULL, NULL, 1, '2026-11-08 17:56:38', 14, 17);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `settings`
+--
+
+CREATE TABLE `settings` (
+  `setting_key` varchar(100) NOT NULL,
+  `setting_value` text NOT NULL,
+  `updated_by` int(11) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `settings`
+--
+
+INSERT INTO `settings` (`setting_key`, `setting_value`, `updated_by`, `updated_at`) VALUES
+('allow_registration', '1', NULL, '2026-11-10 01:49:17'),
+('contact_email', 'christpartosa9@gmail.com', 1, '2026-11-06 01:04:21'),
+('default_geofence_m', '100', NULL, '2026-11-06 00:24:58'),
+('email_notifications', '1', NULL, '2026-11-10 01:49:17'),
+('face_match_threshold', '0.60', NULL, '2026-11-06 00:24:58'),
+('from_email', 'christpartosa9@gmail.com', 1, '2026-11-06 01:04:21'),
+('from_name', 'Arnis Connect', NULL, '2026-11-06 00:24:58'),
+('organization_name', 'Arnis Connect', NULL, '2026-11-10 01:49:17'),
+('privacy_contact', 'Christ Jhon Denver S. Partosa/christpartosa9@gmail.com/09927854750', 1, '2026-11-06 01:04:21'),
+('require_email_verification', '0', NULL, '2026-11-10 01:49:17');
 
 -- --------------------------------------------------------
 
@@ -514,13 +601,16 @@ CREATE TABLE `trainings` (
 
 INSERT INTO `trainings` (`training_id`, `training_date`, `training_type`, `target_group`, `start_time`, `end_time`, `location`, `venue_type`, `description`, `fee_amount`, `coach_id`, `previous_coach_id`, `needs_coach`, `created_by`, `created_at`, `updated_at`, `updated_by`, `is_voided`, `voided_at`, `voided_by`, `void_reason`, `venue_lat`, `venue_lng`, `geofence_m`) VALUES
 (1, '2026-10-12', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Weekly group training', '0.00', 2, NULL, 0, 2, '2026-10-01 08:00:00', '2026-10-01 08:00:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100),
-(2, '2026-10-17', 'Regular', 'Public', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Saturday public class', '0.00', 2, NULL, 0, 2, '2026-10-02 08:30:00', '2026-10-18 05:19:40', NULL, 0, NULL, NULL, NULL, '10.3441777', '123.9379837', 100),
+(2, '2026-11-09', 'Regular', 'Public', '08:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Saturday public class', '0.00', 2, NULL, 0, 2, '2026-10-02 08:30:00', '2026-11-08 18:19:54', NULL, 0, NULL, NULL, NULL, '10.3441777', '123.9379837', 100),
 (3, '2026-09-28', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Monday group training', '0.00', 2, NULL, 0, 2, '2026-09-20 10:00:00', '2026-09-20 10:00:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100),
 (4, '2026-10-03', 'Regular', 'Public', '08:00:00', '10:00:00', 'Barangay Court, Maguikay, Mandaue City', 'Custom', 'Saturday morning public class', '0.00', 2, NULL, 0, 2, '2026-10-01 09:00:00', '2026-10-01 09:00:00', NULL, 0, NULL, NULL, NULL, NULL, NULL, 100),
 (5, '2026-10-24', 'Private', 'Private', '09:00:00', '11:00:00', 'Private Venue - Banilad, Cebu City', 'Private Venue', 'Private session with Head Coach', '350.00', 1, NULL, 0, 1, '2026-10-06 16:00:00', '2026-10-18 05:18:47', NULL, 0, NULL, NULL, NULL, '10.3413827', '123.9196727', 100),
 (6, '2026-10-06', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Head Coach Tuesday session', '0.00', 1, NULL, 0, 1, '2026-10-04 07:45:00', '2026-10-04 07:45:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100),
 (7, '2026-10-10', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Same-day session - use this for face + GPS self check-in', '0.00', 2, NULL, 0, 2, '2026-10-08 12:00:00', '2026-10-08 12:00:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100),
-(8, '2026-10-08', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Thursday evening training', '0.00', 2, NULL, 0, 2, '2026-10-05 14:00:00', '2026-10-05 14:00:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100);
+(8, '2026-10-08', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Sitio San Jose Gym, Mandaue City', 'School', 'Thursday evening training', '0.00', 2, NULL, 0, 2, '2026-10-05 14:00:00', '2026-10-05 14:00:00', NULL, 0, NULL, NULL, NULL, '10.3444183', '123.9372977', 100),
+(3001, '2026-11-10', 'Regular', 'Public', '15:00:00', '17:00:00', 'Main Gym', 'Custom', 'Today test session', '0.00', 1001, NULL, 0, 2001, '2026-11-10 01:44:53', '2026-11-10 01:49:17', NULL, 0, NULL, NULL, NULL, NULL, NULL, 100),
+(3002, '2026-11-13', 'Regular', 'Mixed', '15:00:00', '17:00:00', 'Main Gym', 'Custom', 'Upcoming test session', '0.00', 1002, NULL, 0, 2001, '2026-11-10 01:44:53', '2026-11-10 01:49:17', NULL, 0, NULL, NULL, NULL, NULL, NULL, 100),
+(3003, '2026-11-05', 'Regular', 'Public', '15:00:00', '17:00:00', 'Main Gym', 'Custom', 'Past test session', '0.00', 1001, NULL, 0, 2001, '2026-11-10 01:44:53', '2026-11-10 01:49:17', NULL, 0, NULL, NULL, NULL, NULL, NULL, 100);
 
 -- --------------------------------------------------------
 
@@ -535,6 +625,8 @@ CREATE TABLE `users` (
   `email` varchar(100) DEFAULT NULL,
   `member_id` int(11) DEFAULT NULL,
   `email_verified_at` datetime DEFAULT NULL,
+  `email_verification_token` varchar(64) DEFAULT NULL,
+  `email_verification_expires_at` datetime DEFAULT NULL,
   `mobile_verified_at` datetime DEFAULT NULL,
   `last_login_at` datetime DEFAULT NULL,
   `session_version` int(11) UNSIGNED NOT NULL DEFAULT 1,
@@ -543,83 +635,35 @@ CREATE TABLE `users` (
   `is_active` tinyint(1) DEFAULT 1,
   `privacy_consent_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Table structure for table `audit_logs`
---
-
-CREATE TABLE `audit_logs` (
-  `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) DEFAULT NULL,
-  `actor_name` varchar(100) NOT NULL DEFAULT 'System',
-  `actor_role` varchar(50) DEFAULT NULL,
-  `action` varchar(50) NOT NULL,
-  `module` varchar(50) NOT NULL,
-  `target_table` varchar(50) DEFAULT NULL,
-  `target_id` int(11) DEFAULT NULL,
-  `description` varchar(500) DEFAULT NULL,
-  `ip_address` varchar(45) DEFAULT NULL,
-  `user_agent` varchar(255) DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_audit_logs_user_id` (`user_id`),
-  KEY `idx_audit_logs_created_at` (`created_at`),
-  KEY `idx_audit_logs_module_action` (`module`, `action`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Table structure for table `settings`
---
-
-CREATE TABLE `settings` (
-  `setting_key` varchar(100) NOT NULL,
-  `setting_value` text NOT NULL,
-  `updated_by` int(11) DEFAULT NULL,
-  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`setting_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Table structure for table `email_verification_tokens`
---
-
-CREATE TABLE `email_verification_tokens` (
-  `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
-  `token` varchar(100) NOT NULL,
-  `expires_at` datetime NOT NULL,
-  `used_at` datetime DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_email_verification_tokens_token` (`token`),
-  KEY `idx_email_verification_tokens_user_id` (`user_id`),
-  KEY `idx_email_verification_tokens_expires_at` (`expires_at`),
-  CONSTRAINT `fk_email_verification_tokens_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`user_id`, `full_name`, `username`, `email`, `member_id`, `email_verified_at`, `mobile_verified_at`, `last_login_at`, `session_version`, `password_hash`, `role`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Super Administrator', 'superadmin', 'superadmin@arnisconnect.local', NULL, NULL, NULL, '2026-10-31 16:04:09', 2, '$2y$12$brQom6OTSTj1s7FqWs0pYOlboQBVMknUlP9gTcyZDvtlM1tUxVi1O', 'SuperAdmin', 1, '2026-01-21 22:17:32', '2026-10-31 16:04:09'),
-(2, 'Coach Paulo Reyes', 'coach.paulo', 'coach.paulo@arnis.test', 2, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Coach/Trainer', 1, '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
-(3, 'Liza Marquez', 'officer.liza', 'officer.liza@arnis.test', NULL, NULL, NULL, '2026-10-11 18:34:44', 2, '$2y$12$PHqqVDQodBA9lq6O4jagNeZOtwVx8OolZau4BkPWvt6zbU1W5x63m', 'Officer', 1, '2026-10-01 08:05:00', '2026-10-11 18:34:44'),
-(4, 'Miguel Santillan', 'member.migs', 'migs.santillan@example.com', 4, NULL, NULL, '2026-10-10 19:56:16', 2, '$2y$12$UIIIZHG6dmpfaZLEaIJGFukTGJw49iz3NhHNjafOOlN6YLc1btjXa', 'Member', 1, '2026-10-01 08:10:00', '2026-10-10 19:56:16'),
-(6, 'Anna Marie Lim', 'member.anna', 'anna.lim@example.com', 5, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
-(7, 'Liam Cruz', 'member.liam', 'liam.cruz@example.com', 6, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, '2026-10-02 10:05:00', '2026-10-02 10:05:00'),
-(8, 'Giana Reyes', 'member.giana', 'giana.reyes@example.com', 7, NULL, NULL, '2026-10-17 20:24:48', 2, '$2y$12$zm3g6Vg/Nih8hDooq/Xffux1Gcyza309fIKQ2RE4clfOUkPxRGev2', 'Member', 1, '2026-09-22 16:25:00', '2026-10-17 20:24:48'),
-(9, 'Master Ramon Dela Cruz', 'member.1', 'ramon.delacruz@arnis.test', 1, NULL, NULL, '2026-10-11 18:35:50', 2, '$2y$12$fV5tJYOtNTURF5K8SV8vZu/Do3qCT274VDFWTt6lBUvG4REy2fIXC', 'Head Coach', 1, '2026-10-12 00:39:43', '2026-10-11 18:35:50'),
-(10, 'Coach Ana Mercado', 'member.3', 'ana.mercado@arnis.test', 3, NULL, NULL, '2026-10-11 18:30:11', 2, '$2y$12$ugk06BTkEilT5EQO0qMLDOiE6VroUqkFz/oRG27bQEAUJntjj.ksm', 'Coach/Trainer', 1, '2026-10-12 00:39:43', '2026-10-11 18:30:11'),
-(11, 'Joshua Ramos', 'member.8', 'joshua.ramos@arnis.test', 8, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
-(12, 'Bea Navarro', 'member.9', 'bea.navarro@arnis.test', 9, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
-(13, 'Karl Mendoza', 'member.10', 'karl.mendoza@arnis.test', 10, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 0, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
-(14, 'Trisha Villanueva', 'member.11', 'trisha.villanueva@arnis.test', 11, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
-(15, 'Diego Fernandez', 'member.12', 'diego.fernandez@arnis.test', 12, NULL, NULL, '2026-10-28 22:53:30', 2, '$2y$12$0yqEgA4hodenS/OvRPgn/ONlel5So2wSU0O//6UO14YLNRs/h6cL6', 'Member', 1, '2026-10-12 00:39:43', '2026-10-28 22:53:30'),
-(16, 'Sophia Fernandez', 'applicant.4', 'sophia.fernandez@example.com', NULL, NULL, NULL, '2026-10-17 14:29:17', 2, '$2y$12$QzoftIVfogi1ks7UyjL5bOIcJMnwYV7huyaomvrEn27o1TzpIV.OO', 'Applicant', 1, '2026-10-09 14:05:00', '2026-10-17 14:29:17');
+INSERT INTO `users` (`user_id`, `full_name`, `username`, `email`, `member_id`, `email_verified_at`, `email_verification_token`, `email_verification_expires_at`, `mobile_verified_at`, `last_login_at`, `session_version`, `password_hash`, `role`, `is_active`, `privacy_consent_at`, `created_at`, `updated_at`) VALUES
+(1, 'Super Administrator', 'superadmin', 'superadmin@arnisconnect.local', NULL, '2026-11-10 01:49:17', NULL, NULL, NULL, '2026-11-10 01:17:05', 2, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'SuperAdmin', 1, NULL, '2026-01-21 22:17:32', '2026-11-10 01:49:17'),
+(2, 'Coach Paulo Reyes', 'coach.paulo', 'coach.paulo@arnis.test', 2, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Coach/Trainer', 1, NULL, '2026-10-01 08:00:00', '2026-10-01 08:00:00'),
+(3, 'Liza Marquez', 'officer.liza', 'officer.liza@arnis.test', NULL, NULL, NULL, NULL, NULL, '2026-10-11 18:34:44', 2, '$2y$12$PHqqVDQodBA9lq6O4jagNeZOtwVx8OolZau4BkPWvt6zbU1W5x63m', 'Officer', 1, NULL, '2026-10-01 08:05:00', '2026-10-11 18:34:44'),
+(4, 'Miguel Santillan', 'member.migs', 'migs.santillan@example.com', 4, NULL, NULL, NULL, NULL, '2026-10-10 19:56:16', 2, '$2y$12$UIIIZHG6dmpfaZLEaIJGFukTGJw49iz3NhHNjafOOlN6YLc1btjXa', 'Member', 1, NULL, '2026-10-01 08:10:00', '2026-10-10 19:56:16'),
+(6, 'Anna Marie Lim', 'member.anna', 'anna.lim@example.com', 5, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, NULL, '2026-10-02 10:00:00', '2026-10-02 10:00:00'),
+(7, 'Liam Cruz', 'member.liam', 'liam.cruz@example.com', 6, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, NULL, '2026-10-02 10:05:00', '2026-10-02 10:05:00'),
+(8, 'Giana Reyes', 'member.giana', 'giana.reyes@example.com', 7, NULL, NULL, NULL, NULL, '2026-10-17 20:24:48', 2, '$2y$12$zm3g6Vg/Nih8hDooq/Xffux1Gcyza309fIKQ2RE4clfOUkPxRGev2', 'Member', 1, NULL, '2026-09-22 16:25:00', '2026-10-17 20:24:48'),
+(9, 'Master Ramon Dela Cruz', 'member.1', 'ramon.delacruz@arnis.test', 1, NULL, NULL, NULL, NULL, '2026-10-11 18:35:50', 2, '$2y$12$fV5tJYOtNTURF5K8SV8vZu/Do3qCT274VDFWTt6lBUvG4REy2fIXC', 'Head Coach', 1, NULL, '2026-10-12 00:39:43', '2026-10-11 18:35:50'),
+(10, 'Coach Ana Mercado', 'member.3', 'ana.mercado@arnis.test', 3, NULL, NULL, NULL, NULL, '2026-10-11 18:30:11', 2, '$2y$12$ugk06BTkEilT5EQO0qMLDOiE6VroUqkFz/oRG27bQEAUJntjj.ksm', 'Coach/Trainer', 1, NULL, '2026-10-12 00:39:43', '2026-10-11 18:30:11'),
+(11, 'Joshua Ramos', 'member.8', 'joshua.ramos@arnis.test', 8, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, NULL, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
+(12, 'Bea Navarro', 'member.9', 'bea.navarro@arnis.test', 9, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, NULL, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
+(13, 'Karl Mendoza', 'member.10', 'karl.mendoza@arnis.test', 10, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 0, NULL, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
+(14, 'Trisha Villanueva', 'member.11', 'trisha.villanueva@arnis.test', 11, NULL, NULL, NULL, NULL, NULL, 1, '$2y$10$77Zpz3isc7D0XciyJetcluWonqguoqC3tUyVSVpoAHnNq05j8/vy6', 'Member', 1, NULL, '2026-10-12 00:39:43', '2026-10-12 00:39:43'),
+(15, 'Diego Fernandez', 'member.12', 'diego.fernandez@arnis.test', 12, NULL, NULL, NULL, NULL, '2026-10-28 22:53:30', 2, '$2y$12$0yqEgA4hodenS/OvRPgn/ONlel5So2wSU0O//6UO14YLNRs/h6cL6', 'Member', 1, NULL, '2026-10-12 00:39:43', '2026-10-28 22:53:30'),
+(16, 'Sophia Fernandez', 'applicant.4', 'sophia.fernandez@example.com', 13, NULL, NULL, NULL, NULL, '2026-10-17 14:29:17', 3, '$2y$12$QzoftIVfogi1ks7UyjL5bOIcJMnwYV7huyaomvrEn27o1TzpIV.OO', 'Member', 1, NULL, '2026-10-09 14:05:00', '2026-11-08 18:04:15'),
+(17, 'Feygie S. Partosa', 'fpart016', 'feygiepartosa827@gmail.com', 14, '2026-11-08 17:56:53', NULL, NULL, NULL, '2026-11-08 18:20:24', 2, '$2y$12$q5Bbx3V1PHd3skTOM7fFmOEiiGhEHvhud/TFIFHyDBHMaSXFAJTkW', 'Member', 1, '2026-11-08 17:56:38', '2026-11-08 17:56:38', '2026-11-08 18:20:24'),
+(2002, 'Test Head Coach', 'headcoach1', 'headcoach1@test.local', 1001, '2026-11-10 01:49:17', NULL, NULL, NULL, NULL, 1, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'Head Coach', 1, '2026-11-10 01:23:25', '2026-11-10 01:23:25', '2026-11-10 01:49:17'),
+(2003, 'Test Coach', 'coach1', 'coach1@test.local', 1002, '2026-11-10 01:49:17', NULL, NULL, NULL, NULL, 1, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'Coach/Trainer', 1, '2026-11-10 01:23:25', '2026-11-10 01:23:25', '2026-11-10 01:49:17'),
+(2004, 'Test Finance Officer', 'finance1', 'finance1@test.local', NULL, '2026-11-10 01:49:17', NULL, NULL, NULL, NULL, 1, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'Officer', 1, '2026-11-10 01:23:25', '2026-11-10 01:23:25', '2026-11-10 01:49:17'),
+(2005, 'Test Member One', 'member1', 'member1@test.local', 1003, '2026-11-10 01:49:17', NULL, NULL, NULL, NULL, 1, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'Member', 1, '2026-11-10 01:23:25', '2026-11-10 01:23:25', '2026-11-10 01:49:17'),
+(2006, 'Test Member Two', 'member2', 'member2@test.local', 1004, '2026-11-10 01:49:17', NULL, NULL, NULL, NULL, 1, '$2y$10$JTgnv0g7ko4HIb43i4GwVueOZwC/So55GJ0FCq5EmaFHgzoWYiqkS', 'Member', 1, '2026-11-10 01:23:25', '2026-11-10 01:23:25', '2026-11-10 01:49:17');
 
 --
 -- Indexes for dumped tables
@@ -634,6 +678,15 @@ ALTER TABLE `achievements`
   ADD KEY `event_id` (`event_id`),
   ADD KEY `fk_achievements_voided_by` (`voided_by`),
   ADD KEY `fk_achievements_created_by` (`created_by`);
+
+--
+-- Indexes for table `announcements`
+--
+ALTER TABLE `announcements`
+  ADD PRIMARY KEY (`announcement_id`),
+  ADD KEY `idx_announcements_created_at` (`created_at`),
+  ADD KEY `idx_announcements_archived` (`is_archived`),
+  ADD KEY `idx_announcements_created_by` (`created_by`);
 
 --
 -- Indexes for table `attendance`
@@ -655,7 +708,26 @@ ALTER TABLE `attendance_checkins`
   ADD UNIQUE KEY `uniq_checkin_training_member` (`training_id`,`member_id`),
   ADD KEY `fk_checkin_training` (`training_id`),
   ADD KEY `fk_checkin_member` (`member_id`),
-  ADD KEY `fk_checkin_recorded_by` (`recorded_by`);
+  ADD KEY `fk_checkin_recorded_by` (`recorded_by`),
+  ADD KEY `idx_checkins_training_member` (`training_id`,`member_id`);
+
+--
+-- Indexes for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_audit_logs_user_id` (`user_id`),
+  ADD KEY `idx_audit_logs_created_at` (`created_at`),
+  ADD KEY `idx_audit_logs_module_action` (`module`,`action`);
+
+--
+-- Indexes for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_email_verification_tokens_token` (`token`),
+  ADD KEY `idx_email_verification_tokens_user_id` (`user_id`),
+  ADD KEY `idx_email_verification_tokens_expires_at` (`expires_at`);
 
 --
 -- Indexes for table `events`
@@ -750,7 +822,14 @@ ALTER TABLE `registration_requests`
   ADD KEY `fk_registration_reviewed_by` (`reviewed_by`),
   ADD KEY `idx_registration_member_id` (`member_id`),
   ADD KEY `fk_registration_user_id` (`user_id`),
-  ADD KEY `fk_registration_rank_verified_by` (`rank_verified_by`);
+  ADD KEY `fk_registration_rank_verified_by` (`rank_verified_by`),
+  ADD KEY `idx_registration_status_submitted` (`status`,`submitted_at`);
+
+--
+-- Indexes for table `settings`
+--
+ALTER TABLE `settings`
+  ADD PRIMARY KEY (`setting_key`);
 
 --
 -- Indexes for table `trainings`
@@ -775,8 +854,10 @@ ALTER TABLE `trainings`
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
+  ADD PRIMARY KEY (`user_id`),
   ADD UNIQUE KEY `username` (`username`),
   ADD UNIQUE KEY `uniq_users_email` (`email`),
+  ADD UNIQUE KEY `uq_users_email_verification_token` (`email_verification_token`),
   ADD KEY `idx_users_member_id` (`member_id`);
 
 --
@@ -790,16 +871,34 @@ ALTER TABLE `achievements`
   MODIFY `achievement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
+-- AUTO_INCREMENT for table `announcements`
+--
+ALTER TABLE `announcements`
+  MODIFY `announcement_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `attendance`
 --
 ALTER TABLE `attendance`
-  MODIFY `attendance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `attendance_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
 
 --
 -- AUTO_INCREMENT for table `attendance_checkins`
 --
 ALTER TABLE `attendance_checkins`
   MODIFY `checkin_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `events`
@@ -829,7 +928,7 @@ ALTER TABLE `funds`
 -- AUTO_INCREMENT for table `members`
 --
 ALTER TABLE `members`
-  MODIFY `member_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `member_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1005;
 
 --
 -- AUTO_INCREMENT for table `rank_history`
@@ -847,19 +946,19 @@ ALTER TABLE `rank_verification_history`
 -- AUTO_INCREMENT for table `registration_requests`
 --
 ALTER TABLE `registration_requests`
-  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `trainings`
 --
 ALTER TABLE `trainings`
-  MODIFY `training_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `training_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3004;
 
 --
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2007;
 
 --
 -- Constraints for dumped tables
@@ -873,6 +972,12 @@ ALTER TABLE `achievements`
   ADD CONSTRAINT `achievements_ibfk_2` FOREIGN KEY (`event_id`) REFERENCES `events` (`event_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_achievements_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_achievements_voided_by` FOREIGN KEY (`voided_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `announcements`
+--
+ALTER TABLE `announcements`
+  ADD CONSTRAINT `fk_announcements_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `attendance`
@@ -891,6 +996,12 @@ ALTER TABLE `attendance_checkins`
   ADD CONSTRAINT `fk_checkin_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`member_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `fk_checkin_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_checkin_training` FOREIGN KEY (`training_id`) REFERENCES `trainings` (`training_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `email_verification_tokens`
+--
+ALTER TABLE `email_verification_tokens`
+  ADD CONSTRAINT `fk_email_verification_tokens_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `events`
@@ -979,6 +1090,8 @@ ALTER TABLE `trainings`
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_member_id` FOREIGN KEY (`member_id`) REFERENCES `members` (`member_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 COMMIT;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;

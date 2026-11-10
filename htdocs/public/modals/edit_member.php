@@ -156,12 +156,15 @@ if (typeof window.syncMemberPaymentUI !== 'function') {
 
 function openEditMemberModal(data) {
     const fieldPerms = window.arnisMemberFieldPermissions || {
-        rank: true, status: true, member_type: true, payment_notes: true
+        rank: true, status: true, member_type: true, payment_notes: true, player_category: true, full_name: true, dob: true, is_member_self: false
     };
     const managedFields = {
+        full_name: 'edit_m_name',
+        dob: 'edit_m_dob',
         rank: 'edit_m_rank',
         status: 'edit_m_status',
         member_type: 'edit_m_member_type',
+        player_category: 'edit_m_player_category',
         payment_notes: 'edit_payment_notes'
     };
     Object.keys(managedFields).forEach(function (key) {
@@ -171,7 +174,7 @@ function openEditMemberModal(data) {
         el.disabled = !allowed;
         el.classList.toggle('opacity-50', !allowed);
         el.classList.toggle('cursor-not-allowed', !allowed);
-        el.title = allowed ? '' : 'This field is staff-controlled.';
+        el.title = allowed ? '' : 'This field is read-only.';
     });
 
     document.getElementById('edit_m_id').value = data.id || data.member_id || '';
