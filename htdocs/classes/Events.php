@@ -18,17 +18,28 @@ class Events
         $page = max(1, $page);
         $offset = ($page - 1) * $perPage;
 
-        $sql = "SELECT event_id, event_name, event_type, event_date, location, description,
+        $participantJoin = '';
+        if (!empty($userRestrictions['participant_member_id'])) {
+            $participantJoin = " LEFT JOIN event_participants ep ON ep.event_id = events.event_id AND ep.is_voided = 0";
+        }
+
+        $sql = "SELECT DISTINCT event_id, event_name, event_type, event_date, location, description,
                        target_player_category, expected_participants, created_at, created_by,
                        handler_id, previous_handler_id, needs_handler
                 FROM events
-                WHERE is_voided = 0";
+                $participantJoin
+                WHERE events.is_voided = 0";
 
         $params = [];
 
         if (!empty($userRestrictions['created_by'])) {
             $sql .= " AND created_by = :created_by";
             $params[':created_by'] = (int)$userRestrictions['created_by'];
+        }
+
+        if (!empty($userRestrictions['participant_member_id'])) {
+            $sql .= " AND ep.member_id = :participant_member_id";
+            $params[':participant_member_id'] = (int)$userRestrictions['participant_member_id'];
         }
 
         if (!empty($filters['search'])) {
@@ -68,12 +79,27 @@ class Events
 
     public function getCount(array $filters = [], array $userRestrictions = []): int
     {
-        $sql = "SELECT COUNT(*) as total FROM events WHERE is_voided = 0";
+        $sql = "SELECT COUNT(DISTINCT events.event_id) as total FROM events";
+        $params = [];
+
+        $participantJoin = '';
+        if (!empty($userRestrictions['participant_member_id'])) {
+            $participantJoin = " LEFT JOIN event_participants ep ON ep.event_id = events.event_id AND ep.is_voided = 0";
+        }
+
+        $sql = "SELECT COUNT(DISTINCT events.event_id) as total FROM events
+                $participantJoin
+                WHERE events.is_voided = 0";
         $params = [];
 
         if (!empty($userRestrictions['created_by'])) {
             $sql .= " AND created_by = :created_by";
             $params[':created_by'] = (int)$userRestrictions['created_by'];
+        }
+
+        if (!empty($userRestrictions['participant_member_id'])) {
+            $sql .= " AND ep.member_id = :participant_member_id";
+            $params[':participant_member_id'] = (int)$userRestrictions['participant_member_id'];
         }
 
         if (!empty($filters['search'])) {
@@ -108,6 +134,13 @@ class Events
     {
         $baseConditions = ["is_voided = 0"];
         $params = [];
+        $participantJoin = '';
+
+        if (!empty($userRestrictions['participant_member_id'])) {
+            $participantJoin = " LEFT JOIN event_participants ep ON ep.event_id = events.event_id AND ep.is_voided = 0";
+            $baseConditions[] = "ep.member_id = :participant_member_id";
+            $params[':participant_member_id'] = (int)$userRestrictions['participant_member_id'];
+        }
 
         if (!empty($userRestrictions['created_by'])) {
             $baseConditions[] = "created_by = :created_by";
@@ -136,7 +169,7 @@ class Events
         $counts = [];
         foreach (['Tournament', 'Performance', 'Outreach'] as $type) {
             $stmt = $this->conn->prepare(
-                "SELECT COUNT(*) as count FROM events $baseWhere AND event_type = :stat_type"
+                "SELECT COUNT(*) as count FROM events $participantJoin $baseWhere AND event_type = :stat_type"
             );
             $bound = $params;
             $bound[':stat_type'] = $type;

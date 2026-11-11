@@ -75,17 +75,27 @@ try {
         }
     }
 
-    $evStmt = $db->prepare('SELECT event_id, event_name, event_date, location FROM events WHERE event_id = :id AND is_voided = 0 LIMIT 1');
+    $evStmt = $db->prepare('SELECT event_id, event_name, event_date, start_time, end_time, location, venue_lat, venue_lng, geofence_m FROM events WHERE event_id = :id AND is_voided = 0 LIMIT 1');
     $evStmt->execute([':id' => $eventId]);
     $event = $evStmt->fetch(PDO::FETCH_ASSOC);
     if (!$event) {
         eventCheckinError(404, 'Event not found or has been voided.');
     }
 
+    // Block check-in before the event starts
+    $startTime = $event['start_time'] ?? null;
+    $endTime   = $event['end_time'] ?? null;
+    $nowTs     = time();
+    $startTs   = $startTime !== null ? strtotime($startTime) : null;
+
     $today = date('Y-m-d');
     $eventDate = (string)($event['event_date'] ?? '');
     if ($eventDate > $today) {
         eventCheckinError(400, 'Cannot check in for future events.');
+    }
+
+    if ($startTs !== null && $nowTs < $startTs) {
+        eventCheckinError(400, 'Check-in is not yet open. Event starts at ' . date('h:i A', $startTs) . '.');
     }
 
     $pStmt = $db->prepare('SELECT participant_id, attendance_status FROM event_participants WHERE event_id = :eid AND member_id = :mid AND is_voided = 0 LIMIT 1');
@@ -136,15 +146,41 @@ try {
         eventCheckinError(400, 'Face verification required. Please enroll your face first.');
     }
 
-    // Events do not have geofence columns in schema; accept location if provided but do not enforce.
+    // Geolocation + geofence enforcement (same as trainings)
     $distanceM = null;
     $userLat = isset($_POST['latitude']) && is_numeric($_POST['latitude']) ? (float)$_POST['latitude'] : null;
     $userLng = isset($_POST['longitude']) && is_numeric($_POST['longitude']) ? (float)$_POST['longitude'] : null;
-    if ($userLat !== null && $userLng !== null) {
-        $distanceM = 0; // location captured (no geofence)
+    $venueLat = isset($event['venue_lat']) && $event['venue_lat'] !== null ? (float)$event['venue_lat'] : null;
+    $venueLng = isset($event['venue_lng']) && $event['venue_lng'] !== null ? (float)$event['venue_lng'] : null;
+    $geofenceM = isset($event['geofence_m']) && $event['geofence_m'] !== null ? (int)$event['geofence_m'] : 100;
+
+    if ($userLat !== null && $userLng !== null && $venueLat !== null && $venueLng !== null) {
+        $earthRadius = 6371000;
+        $lat1 = deg2rad($userLat);
+        $lon1 = deg2rad($userLng);
+        $lat2 = deg2rad($venueLat);
+        $lon2 = deg2rad($venueLng);
+        $dLat = $lat2 - $lat1;
+        $dLon = $lon2 - $lon1;
+        $a = sin($dLat/2) * sin($dLat/2) + cos($lat1) * cos($lat2) * sin($dLon/2) * sin($dLon/2);
+        $c = 2 * atan2(sqrt($a), sqrt(1-$a));
+        $distanceM = (int)round($earthRadius * $c);
+        if ($distanceM > $geofenceM) {
+            eventCheckinError(403, "You are too far from the venue. Distance: {$distanceM}m, Allowed: {$geofenceM}m. Please move closer to the event location.");
+        }
+    } elseif ($venueLat !== null && $venueLng !== null) {
+        eventCheckinError(400, 'Location access required. Please enable GPS and try again.');
     }
 
+    // Mark Late if checked in past the halfway point of the event
     $status = 'Present';
+    if ($startTs !== null && $endTime !== null) {
+        $endTs = strtotime($endTime);
+        $duration = $endTs - $startTs;
+        if ($duration > 0 && $nowTs > $startTs + ($duration / 2)) {
+            $status = 'Late';
+        }
+    }
     $method = ($faceDescriptorInput !== '' && $storedDescriptor !== '') ? 'FaceGPS' : 'Manual';
     $userId = (int)($_SESSION['user_id'] ?? 0);
 

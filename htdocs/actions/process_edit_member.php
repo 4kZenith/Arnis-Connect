@@ -44,12 +44,19 @@ $trainingPreference = trim((string)($_POST['training_preference'] ?? 'Group'));
 $affiliatedSchool = trim((string)($_POST['affiliated_school'] ?? ''));
 $guardianName = trim((string)($_POST['guardian_name'] ?? ''));
 $guardianContact = trim((string)($_POST['guardian_contact'] ?? ''));
-$cloudinaryUrl = trim((string)($_POST['cloudinary_url'] ?? ''));
+    $cloudinaryUrl = trim((string)($_POST['cloudinary_url'] ?? ''));
 
-if ($fullName === '' || $dob === '') {
-    echo json_encode(['success' => false, 'message' => 'Full name and date of birth are required.']);
-    exit;
-}
+    $sessionMemberId = isset($_SESSION['member_id']) && $_SESSION['member_id'] !== null
+        ? (int)$_SESSION['member_id']
+        : 0;
+    $isSelf = $sessionMemberId > 0 && $sessionMemberId === $memberId;
+
+    // Members editing themselves submit disabled read-only fields as empty;
+    // fall back to the stored full name / DOB instead of rejecting.
+    if (!$isSelf && ($fullName === '' || $dob === '')) {
+        echo json_encode(['success' => false, 'message' => 'Full name and date of birth are required.']);
+        exit;
+    }
 
 $dobObj = DateTime::createFromFormat('Y-m-d', $dob);
 if (!$dobObj || $dobObj->format('Y-m-d') !== $dob || $dob > date('Y-m-d')) {
@@ -101,11 +108,6 @@ try {
         exit;
     }
 
-    $sessionMemberId = isset($_SESSION['member_id']) && $_SESSION['member_id'] !== null
-        ? (int)$_SESSION['member_id']
-        : 0;
-    $isSelf = $sessionMemberId > 0 && $sessionMemberId === $memberId;
-
     $writeScope = permissionValue('members', 'write');
     if ($writeScope !== true) {
         if (!canPerformAction('members', 'write', ['member_id' => $memberId])) {
@@ -153,10 +155,11 @@ try {
         exit;
     }
 
-    // Members editing themselves: full name and DOB are read-only (ignored)
+    // Members editing themselves: full name, DOB and player category are read-only (ignored)
     if ($isSelf && $writeScope === 'own') {
         $fullName = (string)($existing['full_name'] ?? $fullName);
         $dob = (string)($existing['dob'] ?? $dob);
+        $playerCategory = (string)($existing['player_category'] ?? $playerCategory);
     }
 
     $canManagePrivileged = (!$isSelf && $writeScope === true);

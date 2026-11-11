@@ -30,8 +30,6 @@
                 <input type="hidden" name="role" id="edit_u_role" value="<?= htmlspecialchars((string)($_SESSION['role'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
                 <p class="text-[8px] text-gray-500 mt-2 italic">* System role cannot be changed here.</p>
             </div>
-                <p class="text-[8px] text-gray-500 mt-2 italic">* Contact administrator to change user role</p>
-            </div>
 
             <div class="col-span-2 mt-2">
                 <div class="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10">

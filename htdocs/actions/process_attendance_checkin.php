@@ -204,14 +204,23 @@ try {
     }
     // If no venue coordinates, allow check-in without geofence check
     
-    // Determine status based on time
+    // Determine status based on time window and session duration
     $status = 'Present';
     $startTime = $training['start_time'] ?? null;
-    if ($startTime !== null) {
+    $endTime   = $training['end_time'] ?? null;
+    $nowTs     = time();
+
+    // Block check-in before the session starts
+    if ($startTime !== null && $nowTs < strtotime($startTime)) {
+        checkinError(400, 'Check-in is not yet open. Session starts at ' . date('h:i A', strtotime($startTime)) . '.');
+    }
+
+    // Mark Late if checked in past the halfway point of the session
+    if ($startTime !== null && $endTime !== null) {
         $startTs = strtotime($startTime);
-        $nowTs = time();
-        // If more than 15 minutes late
-        if ($nowTs > $startTs + 900) {
+        $endTs   = strtotime($endTime);
+        $duration = $endTs - $startTs;
+        if ($duration > 0 && $nowTs > $startTs + ($duration / 2)) {
             $status = 'Late';
         }
     }
