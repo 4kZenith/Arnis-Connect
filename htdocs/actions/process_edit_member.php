@@ -39,8 +39,8 @@ $email = trim((string)($_POST['email'] ?? ''));
 $address = trim((string)($_POST['address'] ?? ''));
 $heightRaw = $_POST['height'] ?? null;
 $weightRaw = $_POST['weight'] ?? null;
-$playerCategory = trim((string)($_POST['player_category'] ?? 'Public'));
-$trainingPreference = trim((string)($_POST['training_preference'] ?? 'Group'));
+    $playerCategory = isset($_POST['player_category']) ? trim((string)$_POST['player_category']) : (string)($existing['player_category'] ?? 'Public');
+    $trainingPreference = isset($_POST['training_preference']) ? trim((string)$_POST['training_preference']) : (string)($existing['training_preference'] ?? 'Group');
 $affiliatedSchool = trim((string)($_POST['affiliated_school'] ?? ''));
 $guardianName = trim((string)($_POST['guardian_name'] ?? ''));
 $guardianContact = trim((string)($_POST['guardian_contact'] ?? ''));
@@ -58,10 +58,14 @@ $guardianContact = trim((string)($_POST['guardian_contact'] ?? ''));
         exit;
     }
 
-$dobObj = DateTime::createFromFormat('Y-m-d', $dob);
-if (!$dobObj || $dobObj->format('Y-m-d') !== $dob || $dob > date('Y-m-d')) {
-    echo json_encode(['success' => false, 'message' => 'Invalid date of birth.']);
-    exit;
+// Only validate DOB if it was actually posted (members self-editing have it disabled;
+// the stored value will be applied after the DB fetch in the fallback block below).
+if ($dob !== '') {
+    $dobObj = DateTime::createFromFormat('Y-m-d', $dob);
+    if (!$dobObj || $dobObj->format('Y-m-d') !== $dob || $dob > date('Y-m-d')) {
+        echo json_encode(['success' => false, 'message' => 'Invalid date of birth.']);
+        exit;
+    }
 }
 
 if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -109,6 +113,10 @@ try {
     }
 
     $writeScope = permissionValue('members', 'write');
+    $sessionMemberId = isset($_SESSION['member_id']) && $_SESSION['member_id'] !== null
+        ? (int)$_SESSION['member_id']
+        : 0;
+    $isSelf = $sessionMemberId > 0 && $sessionMemberId === $memberId;
     if ($writeScope !== true) {
         if (!canPerformAction('members', 'write', ['member_id' => $memberId])) {
             http_response_code(403);

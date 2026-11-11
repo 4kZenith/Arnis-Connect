@@ -68,18 +68,16 @@ if ($filters['start_date'] !== '' && $filters['end_date'] !== ''
 }
 
 $userRestrictions = [];
-if ($readPerm === 'own') {
-    if (currentUserRole() === 'Member') {
-        // Members see only events they are rostered on as participants.
-        $sessionMemberId = isset($_SESSION['member_id']) && is_numeric($_SESSION['member_id'])
-            ? (int)$_SESSION['member_id']
-            : 0;
-        if ($sessionMemberId > 0) {
-            $userRestrictions['participant_member_id'] = $sessionMemberId;
-        }
-    } else {
-        $userRestrictions['created_by'] = (int)$_SESSION['user_id'];
+if (currentUserRole() === 'Member') {
+    // Members see only events they are rostered on as participants.
+    $sessionMemberId = isset($_SESSION['member_id']) && is_numeric($_SESSION['member_id'])
+        ? (int)$_SESSION['member_id']
+        : 0;
+    if ($sessionMemberId > 0) {
+        $userRestrictions['participant_member_id'] = $sessionMemberId;
     }
+} elseif ($readPerm === 'own') {
+    $userRestrictions['created_by'] = (int)$_SESSION['user_id'];
 }
 
 $perPage = 10;

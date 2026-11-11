@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+// Arnis Connect operates on Philippine time (Asia/Manila); stored start/end
+// times are local. Force the default timezone so time() and strtotime() compare
+// apples-to-apples regardless of the server's system timezone.
+date_default_timezone_set('Asia/Manila');
+
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Members.php';

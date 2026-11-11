@@ -318,6 +318,24 @@ try {
     $stmt->execute([':id' => $eventId]);
     $participants = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    /* Members can only view events they are rostered on */
+    if (currentUserRole() === 'Member') {
+        $sessionMemberId = isset($_SESSION['member_id']) && is_numeric($_SESSION['member_id'])
+            ? (int)$_SESSION['member_id']
+            : 0;
+        $isParticipant = false;
+        foreach ($participants as $p) {
+            if ((int)($p['member_id'] ?? 0) === $sessionMemberId) {
+                $isParticipant = true;
+                break;
+            }
+        }
+        if (!$isParticipant) {
+            http_response_code(403);
+            exit('Access Denied: You can only view events you are registered for.');
+        }
+    }
+
     /* Achievements / results ---------------------------------------- */
     $stmt = $db->prepare("
         SELECT a.achievement_id, a.achievement_type, a.level, a.notes, a.achieved_at,
