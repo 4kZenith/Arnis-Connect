@@ -58,7 +58,6 @@ $settings = new Settings($db);
 if (!$settings->enabled('allow_registration')) {
     redirectWithMessage('error', 'Registration is currently closed. Please contact the club administrator.');
 }
-$requireVerification = $settings->enabled('require_email_verification');
 
 if ($fullName === '' || $dob === '' || $contact === '') {
     redirectWithMessage('error', 'Full name, birthdate, and contact number are required.');
@@ -99,9 +98,7 @@ if (!in_array($playerCategory, $allowedPlayerCategories, true)
 }
 
 if ($email === '') {
-    if ($requireVerification) {
-        redirectWithMessage('error', 'An email address is required so we can verify your account.');
-    }
+    redirectWithMessage('error', 'An email address is required so we can verify your account.');
 } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 100) {
     redirectWithMessage('error', 'Please enter a valid email address.');
 }
@@ -192,19 +189,9 @@ try {
         $rankEvidencePath = 'uploads/rank_evidence/' . $filename;
     }
 
-    /*
-     * New accounts are only blocked when they carry a verification token and
-     * have no email_verified_at. Existing/grandfathered accounts have no token,
-     * so enabling verification does not lock them out.
-     */
-    $verificationToken = null;
-    $verificationExpiresAt = null;
-    $emailVerifiedAt = date('Y-m-d H:i:s');
-    if ($requireVerification) {
-        $verificationToken = bin2hex(random_bytes(32));
-        $verificationExpiresAt = date('Y-m-d H:i:s', time() + 86400);
-        $emailVerifiedAt = null;
-    }
+    // Self-registered applicants cannot sign in until verify_email.php sets email_verified_at.
+    $verificationToken = bin2hex(random_bytes(32));
+    $verificationExpiresAt = date('Y-m-d H:i:s', time() + 86400);
 
     $createUser = $db->prepare(
         'INSERT INTO users
@@ -213,15 +200,14 @@ try {
              privacy_consent_at)
          VALUES
             (:full_name, :username, :email, :password_hash, \'Applicant\', 1,
-             :email_verified_at, :verification_token, :verification_expires_at,
+             NULL, :verification_token, :verification_expires_at,
              NOW())'
     );
     $createUser->execute([
         ':full_name' => $fullName,
         ':username' => $username,
-        ':email' => $email !== '' ? $email : null,
+        ':email' => $email,
         ':password_hash' => password_hash($password, PASSWORD_DEFAULT),
-        ':email_verified_at' => $emailVerifiedAt,
         ':verification_token' => $verificationToken,
         ':verification_expires_at' => $verificationExpiresAt,
     ]);
@@ -271,22 +257,14 @@ try {
         'Submitted registration request (' . $username . ')'
     );
 
-    $mailSent = true;
-    if ($requireVerification && $verificationToken !== null) {
-        require_once __DIR__ . '/../classes/Mailer.php';
-        $mailer = new Mailer($db);
-        $mailSent = $mailer->sendVerification($email, $fullName, $verificationToken);
-    }
+    $mailer = new Mailer($db);
+    $mailSent = $mailer->sendVerification($email, $fullName, $verificationToken);
 } catch (PDOException $e) {
     error_log('process_register_request DB error: ' . $e->getMessage());
     redirectWithMessage('error', 'Could not submit your application. Please try again.');
 }
 
-if ($requireVerification) {
-    if ($mailSent) {
-        redirectWithMessage('success', 'Application submitted. We emailed a verification link to ' . $email . '. Verify your email before signing in.');
-    }
-    redirectWithMessage('success', 'Application submitted, but the verification email could not be sent. Use "Resend verification" on the login page to try again.');
+if ($mailSent) {
+    redirectWithMessage('success', 'Application submitted. We emailed a verification link to ' . $email . '. Verify your email before signing in.');
 }
-
-redirectWithMessage('success', 'Application submitted! You can now log in with your username and password to track it.');
+redirectWithMessage('success', 'Application submitted, but the verification email could not be sent. Use "Resend verification" on the login page to try again.');

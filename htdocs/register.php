@@ -16,12 +16,10 @@ if (isset($_SESSION["user_id"])) {
 }
 
 $registrationOpen = true;
-$requireVerification = true;
 $privacyContact = '';
 try {
     $settings = new Settings((new Database())->connect());
     $registrationOpen = $settings->enabled('allow_registration');
-    $requireVerification = $settings->enabled('require_email_verification');
     $privacyContact = trim($settings->get('privacy_contact'));
 } catch (Throwable $e) {
     error_log('register.php settings unavailable: ' . $e->getMessage());
@@ -105,12 +103,8 @@ $isSuccessFlash = ($flashType === 'success');
                 </div>
                 <div>
                     <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Email</label>
-                    <input type="email" name="email" maxlength="100" <?= $requireVerification ? 'required' : '' ?> class="form-input w-full rounded-2xl px-4 py-4 text-sm" placeholder="you@example.com">
-                    <p class="text-[11px] text-gray-500 mt-2">
-                        <?= $requireVerification
-                            ? 'Required. We will email you a verification link before you can sign in.'
-                            : 'Optional, but needed if you want email announcements and notifications.' ?>
-                    </p>
+                    <input type="email" name="email" maxlength="100" required class="form-input w-full rounded-2xl px-4 py-4 text-sm" placeholder="you@example.com">
+                    <p class="text-[11px] text-gray-500 mt-2">Required. We will email you a verification link before you can sign in.</p>
                 </div>
                 <div class="md:col-span-2 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4 sm:p-5">
                     <h3 class="text-[11px] uppercase tracking-[0.18em] font-black text-purple-300 mb-1">Login Credentials</h3>

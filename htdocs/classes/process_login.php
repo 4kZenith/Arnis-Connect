@@ -120,11 +120,13 @@ try {
     }
 
     /*
-     * Only accounts that carry a verification token and have no
-     * email_verified_at are blocked. Existing accounts (no token) are
-     * grandfathered, so turning verification on cannot lock out the club.
+     * Applicants must always have a verified email. Other accounts are only
+     * blocked while they carry a pending verification token, so staff and
+     * members created by an admin (no token) are not locked out.
      */
-    if (!empty($user['email_verification_token']) && $user['email_verified_at'] === null) {
+    $isUnverified = $user['email_verified_at'] === null
+        && (($user['role'] ?? '') === 'Applicant' || !empty($user['email_verification_token']));
+    if ($isUnverified) {
         AuditLog::recordForUser(
             $conn,
             (int)$user['user_id'],
