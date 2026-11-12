@@ -612,11 +612,11 @@ try {
 <div class="flex">
     <?php include_once __DIR__ . '/../includes/sidebar.php'; ?>
 
-    <main id="page" class="flex-1 p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto custom-scrollbar opacity-0 translate-x-8 transition-all duration-500 ease-out">
+    <main id="page" class="flex-1 p-4 sm:p-5 lg:p-6 h-screen overflow-y-auto custom-scrollbar opacity-0 translate-x-8 transition-all duration-500 ease-out">
         <?php include_once __DIR__ . '/../includes/header.php'; ?>
 
         <!-- Role hero: every role gets its own dashboard identity + shortcuts -->
-        <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl mb-6 lg:mb-8 relative overflow-hidden">
+        <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl mb-4 lg:mb-6 relative overflow-hidden">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <?php if ($userRole === 'SuperAdmin'): ?>
@@ -669,9 +669,9 @@ try {
         </div>
 
         <!-- Stats Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 mb-4 lg:mb-6">
             <?php if (canAccess('members') && in_array($membersReadPerm, ['own', 'own_trainees'], true) && $myProfileRow !== null): ?>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl relative overflow-hidden group hover:border-teal-500/50 transition">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl relative overflow-hidden group hover:border-teal-500/50 transition">
                 <div class="flex justify-between items-start">
                     <div class="min-w-0">
                         <p class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-black tracking-widest">My Profile</p>
@@ -694,7 +694,7 @@ try {
 
             <!-- Members Card -->
             <?php if (canAccess('members') && !in_array($membersReadPerm, ['own', 'own_trainees'], true)): ?>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl relative overflow-hidden group hover:border-purple-500/50 transition">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl relative overflow-hidden group hover:border-purple-500/50 transition">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-black tracking-widest">Active Members</p>
@@ -724,7 +724,7 @@ try {
 
             <!-- Trainings Card -->
             <?php if (canAccess('trainings')): ?>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl group hover:border-blue-500/50 transition">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl group hover:border-blue-500/50 transition">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-black tracking-widest">
@@ -746,7 +746,7 @@ try {
 
             <!-- Funds Card -->
             <?php if (canAccess('funds')): ?>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl group hover:border-green-500/50 transition">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl group hover:border-green-500/50 transition">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-black tracking-widest">Net Balance (All-time)</p>
@@ -766,7 +766,7 @@ try {
             </div>
 
             <!-- Voided Records Card -->
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl group hover:border-orange-500/50 transition">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl group hover:border-orange-500/50 transition">
                 <div class="flex justify-between items-start">
                     <div>
                         <p class="text-[9px] sm:text-[10px] text-gray-500 uppercase font-black tracking-widest">Audit (Voided)</p>
@@ -783,7 +783,7 @@ try {
 
         <!-- Admin: Unassigned Work (needs replacement coach / handler) -->
         <?php if ($userRole === 'SuperAdmin' && (!empty($unassignedTrainings) || !empty($unassignedEvents))): ?>
-        <div class="card-bg rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl mb-6 lg:mb-8 border border-amber-500/30" id="unassignedWorkPanel">
+        <div class="card-bg rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl mb-4 lg:mb-6 border border-amber-500/30" id="unassignedWorkPanel">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400">
                     <i class="fas fa-triangle-exclamation"></i>
@@ -877,13 +877,13 @@ try {
 
         <!-- Member workspace: My Journey -->
         <?php if ($userRole === 'Member' && $myProfileRow !== null): ?>
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 mb-4 lg:mb-6">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center">
                 <i class="fas fa-check-circle text-xl sm:text-2xl mb-2 text-green-400 opacity-80"></i>
                 <div class="text-2xl sm:text-3xl font-bold"><?= (int)$myAttendance['present'] ?></div>
                 <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">Times Present</div>
             </div>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center border border-yellow-500/20">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center border border-yellow-500/20">
                 <i class="fas fa-medal text-xl sm:text-2xl mb-2 text-yellow-400 opacity-80"></i>
                 <div class="text-sm sm:text-base font-bold mt-1 leading-tight"><?= htmlspecialchars((string)($myProfileRow['rank'] ?? 'None'), ENT_QUOTES, 'UTF-8') ?></div>
                 <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">My Belt &bull; <?= (int)$myPromoCount ?> promotion<?= (int)$myPromoCount === 1 ? '' : 's' ?></div>
@@ -891,12 +891,12 @@ try {
                 <a href="member_profile.php?id=<?= (int)$myMemberId ?>" class="inline-block mt-2 text-[9px] sm:text-[10px] text-yellow-400 hover:text-white uppercase font-bold">View progression →</a>
                 <?php endif; ?>
             </div>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center">
                 <i class="fas fa-medal text-xl sm:text-2xl mb-2 text-yellow-400 opacity-80"></i>
                 <div class="text-2xl sm:text-3xl font-bold"><?= count($myAchievements) > 0 ? count($myAchievements) . '+' : (int)$myPromoCount ?></div>
                 <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">Results &amp; Promotions</div>
             </div>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center col-span-2">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center col-span-2">
                 <i class="fas fa-trophy text-xl sm:text-2xl mb-2 text-purple-400 opacity-80"></i>
                 <div class="text-sm sm:text-base font-bold mt-1 space-y-1">
                     <?php if (!empty($myAchievements)): ?>
@@ -914,8 +914,8 @@ try {
 
         <!-- Member workspace: belt + upcoming sessions -->
         <?php if ($userRole === 'Member' && $myProfileRow !== null): ?>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center border border-yellow-500/20">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 lg:gap-4 mb-4 lg:mb-6">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center border border-yellow-500/20">
                 <i class="fas fa-award text-xl sm:text-2xl mb-2 text-yellow-400 opacity-80"></i>
                 <div class="text-base sm:text-lg font-black mt-1"><?= $myNextRank !== null ? htmlspecialchars($myNextRank, ENT_QUOTES, 'UTF-8') : 'Highest Rank' ?></div>
                 <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">Next Belt Goal</div>
@@ -942,7 +942,7 @@ try {
                 <a href="member_profile.php?id=<?= (int)$myMemberId ?>#belt-progression" class="inline-block mt-2 text-[9px] sm:text-[10px] text-yellow-400 hover:text-white uppercase font-bold">Open full progression →</a>
                 <?php endif; ?>
             </div>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl">
                 <h4 class="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 mb-3"><i class="fas fa-calendar-check mr-2 text-blue-400"></i>My Upcoming Sessions</h4>
                 <?php if (!empty($myUpcomingSessions)): ?>
                 <ul class="space-y-2 text-xs">
@@ -957,7 +957,7 @@ try {
                 <p class="text-xs text-gray-500">No upcoming sessions on your roster. Your coach adds you to sessions you belong to.</p>
                 <?php endif; ?>
             </div>
-            <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl text-center">
+            <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl text-center">
                 <i class="fas fa-face-smile text-xl sm:text-2xl mb-2 text-purple-400 opacity-80"></i>
                 <div class="text-base sm:text-lg font-black mt-1">Self Check-In</div>
                 <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">Face + GPS</div>
@@ -968,7 +968,7 @@ try {
 
         <!-- Applicant workspace: Application Tracker -->
         <?php if ($userRole === 'Applicant'): ?>
-        <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl mb-6 lg:mb-8">
+        <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl mb-4 lg:mb-6">
             <div class="flex flex-col gap-4">
                 <div class="flex items-center gap-3 sm:gap-4">
                     <?php
@@ -1159,7 +1159,7 @@ try {
                                 ? 0
                                 : max(0, (int)ceil(($eventTimestamp - strtotime(date('Y-m-d'))) / 86400));
                     ?>
-                    <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div class="flex items-center gap-3 sm:gap-4">
                             <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-base sm:text-lg flex-shrink-0">
                                 <i class="fas fa-trophy"></i>
@@ -1184,7 +1184,7 @@ try {
                         endforeach;
                     else:
                     ?>
-                    <div class="card-bg p-4 sm:p-6 rounded-2xl sm:rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div class="flex items-center gap-3 sm:gap-4">
                             <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 text-base sm:text-lg flex-shrink-0">
                                 <i class="fas fa-calendar"></i>

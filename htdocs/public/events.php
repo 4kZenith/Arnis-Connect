@@ -95,8 +95,8 @@ try {
     $events = $eventsModel->getAll($filters, $perPage, $page, $userRestrictions);
     $stats = $eventsModel->getStats($filters, $userRestrictions);
 } catch (Throwable $e) {
-    error_log('events.php error: ' . $e->getMessage());
-    die('Error loading events. Please contact the administrator.');
+    error_log('events.php query error: ' . $e->getMessage());
+    die('Error loading events: ' . htmlspecialchars($e->getMessage()));
 }
 
 function formatDate($date): string

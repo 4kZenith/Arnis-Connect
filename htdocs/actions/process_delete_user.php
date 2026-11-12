@@ -198,8 +198,56 @@ try {
         exit;
     }
 
-    /* ==================================================== 2) MEMBER-LINKED (ARCHIVE) */
+    /* ==================================================== 2) MEMBER-LINKED */
     if ($memberId > 0) {
+        /* A Member (Player) account is hard-deleted with all of its connected
+         * data so nothing is left orphaned in trainings or events. */
+        $isPlayerMember = ($role === 'Member');
+
+        if ($isPlayerMember) {
+            $db->beginTransaction();
+
+            // Remove attendance rows (trainings) for this member
+            $db->prepare("DELETE FROM attendance WHERE member_id = :mid AND is_voided = 0")
+                ->execute([':mid' => $memberId]);
+
+            // Remove event participation rows for this member
+            $db->prepare("DELETE FROM event_participants WHERE member_id = :mid AND is_voided = 0")
+                ->execute([':mid' => $memberId]);
+
+            // Archive the member record (soft-delete preserves audit trails)
+            $db->prepare(
+                "UPDATE members SET is_voided = 1, voided_at = NOW(), voided_by = :by,
+                    void_reason = 'Member account deleted by admin.', updated_at = NOW(), updated_by = :by
+                 WHERE member_id = :mid AND is_voided = 0"
+            )->execute([':by' => $performedBy, ':mid' => $memberId]);
+
+            // Remove the login account
+            $deleted = $usersModel->delete($userId);
+
+            $db->commit();
+
+            AuditLog::record(
+                $db,
+                'delete',
+                'users',
+                $userId,
+                'Deleted Member account #' . $userId . ' and all connected training attendance / event participation records',
+                ['member_id' => $memberId, 'cascade_deleted' => true]
+            );
+
+            echo json_encode([
+                'success' => $deleted,
+                'cascade_deleted' => true,
+                'message' => $deleted
+                    ? 'Member account and all connected training attendance and event participation records were deleted.'
+                    : 'Nothing to remove.',
+            ]);
+            exit;
+        }
+
+        /* Head Coach / Coach / Trainer member-linked accounts are archived
+         * instead of deleted, so their training/event history is preserved. */
         $unassignedTrainings = 0;
         $unassignedEvents = 0;
         $hasTrainingFlag = arnisHasColumn($db, 'trainings', 'needs_coach');
