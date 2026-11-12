@@ -144,10 +144,10 @@ $csrfToken = arnisCsrfToken();
                             <input type="checkbox" name="allow_registration" value="1" <?= !empty($settings['allow_registration']) && $settings['allow_registration'] !== '0' ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500">
                             <span>Allow new member applications from the public registration page.</span>
                         </label>
-                        <label class="flex items-start gap-3 text-xs text-gray-300">
-                            <input type="checkbox" name="require_email_verification" value="1" <?= !empty($settings['require_email_verification']) && $settings['require_email_verification'] !== '0' ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500">
-                            <span>Require new accounts to verify their email address before signing in. Existing accounts without a verification token are not locked out.</span>
-                        </label>
+                        <p class="flex items-start gap-3 text-xs text-gray-400">
+                            <i class="fas fa-envelope-circle-check mt-0.5 text-purple-400"></i>
+                            <span>Applicants must always verify their email address before they can sign in.</span>
+                        </p>
                     </div>
                 </div>
 

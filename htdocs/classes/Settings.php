@@ -20,7 +20,6 @@ class Settings
         'from_email' => '',
         'from_name' => 'Arnis Connect',
         'allow_registration' => '1',
-        'require_email_verification' => '1',
         'email_notifications' => '1',
         'face_match_threshold' => '0.60',
         'default_geofence_m' => '100',

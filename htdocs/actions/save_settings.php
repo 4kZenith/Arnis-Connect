@@ -77,7 +77,6 @@ try {
         'face_match_threshold' => number_format($faceThreshold, 2, '.', ''),
         'default_geofence_m' => (string)$geofence,
         'allow_registration' => isset($_POST['allow_registration']) ? '1' : '0',
-        'require_email_verification' => isset($_POST['require_email_verification']) ? '1' : '0',
         'email_notifications' => isset($_POST['email_notifications']) ? '1' : '0',
     ];
 
