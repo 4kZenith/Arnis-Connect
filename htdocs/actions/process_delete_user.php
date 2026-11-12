@@ -4,9 +4,8 @@ declare(strict_types=1);
 /*
  * USER REMOVAL — SuperAdmin (Admin) only.
  *
- * Three distinct, role-aware behaviours. There is NO broad destructive
- * CASCADE: historical training / event / attendance / participation /
- * achievement / audit rows are always preserved.
+ * Role-aware behaviours. Only a Member (Player) account is cascade-deleted;
+ * staff history and audit rows are otherwise preserved.
  *
  *   1) APPLICANT (self-registered login)
  *        Hard-deletes the account AND its own pending registration request,
@@ -15,8 +14,12 @@ declare(strict_types=1);
  *        uploads/rank_evidence/<file> evidence file on disk. Unrelated
  *        records are never touched.
  *
- *   2) MEMBER-LINKED login (Head Coach / Coach / Member-Player / any account
- *      with users.member_id):
+ *   2a) MEMBER (Player) login with users.member_id:
+ *        Hard-deletes, in one transaction, the member's attendance,
+ *        attendance_checkins and event_participants rows, the users row and
+ *        the members row (achievements / rank_history go via FK CASCADE).
+ *
+ *   2b) Other MEMBER-LINKED staff login (Head Coach / Coach/Trainer):
  *        ARCHIVES instead of deleting.
  *          - users.is_active = 0 (login revoked, session invalidated)
  *          - members.is_voided = 1 (+ voided_at / voided_by / void_reason)
@@ -205,43 +208,75 @@ try {
         $isPlayerMember = ($role === 'Member');
 
         if ($isPlayerMember) {
-            $db->beginTransaction();
+            $removed = ['attendance' => 0, 'attendance_checkins' => 0, 'event_participants' => 0];
+            $memberDeleted = false;
+            $deleted = false;
 
-            // Remove attendance rows (trainings) for this member
-            $db->prepare("DELETE FROM attendance WHERE member_id = :mid AND is_voided = 0")
-                ->execute([':mid' => $memberId]);
+            try {
+                $db->beginTransaction();
 
-            // Remove event participation rows for this member
-            $db->prepare("DELETE FROM event_participants WHERE member_id = :mid AND is_voided = 0")
-                ->execute([':mid' => $memberId]);
+                $stmt = $db->prepare('DELETE FROM attendance WHERE member_id = :mid');
+                $stmt->execute([':mid' => $memberId]);
+                $removed['attendance'] = $stmt->rowCount();
 
-            // Archive the member record (soft-delete preserves audit trails)
-            $db->prepare(
-                "UPDATE members SET is_voided = 1, voided_at = NOW(), voided_by = :by,
-                    void_reason = 'Member account deleted by admin.', updated_at = NOW(), updated_by = :by
-                 WHERE member_id = :mid AND is_voided = 0"
-            )->execute([':by' => $performedBy, ':mid' => $memberId]);
+                if (arnisHasColumn($db, 'attendance_checkins', 'member_id')) {
+                    $stmt = $db->prepare('DELETE FROM attendance_checkins WHERE member_id = :mid');
+                    $stmt->execute([':mid' => $memberId]);
+                    $removed['attendance_checkins'] = $stmt->rowCount();
+                }
 
-            // Remove the login account
-            $deleted = $usersModel->delete($userId);
+                $stmt = $db->prepare('DELETE FROM event_participants WHERE member_id = :mid');
+                $stmt->execute([':mid' => $memberId]);
+                $removed['event_participants'] = $stmt->rowCount();
 
-            $db->commit();
+                $deleted = $usersModel->delete($userId);
+
+                // Achievements / rank history cascade via FK; other references are SET NULL.
+                $stmt = $db->prepare('DELETE FROM members WHERE member_id = :mid');
+                $stmt->execute([':mid' => $memberId]);
+                $memberDeleted = $stmt->rowCount() > 0;
+
+                if (!$deleted) {
+                    throw new RuntimeException('User row was not deleted.');
+                }
+
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                if ($e instanceof PDOException && $e->getCode() === '23000') {
+                    http_response_code(409);
+                    echo json_encode(['success' => false, 'message' => 'This member is still referenced by protected records and could not be deleted.']);
+                    exit;
+                }
+                throw $e;
+            }
 
             AuditLog::record(
                 $db,
                 'delete',
                 'users',
                 $userId,
-                'Deleted Member account #' . $userId . ' and all connected training attendance / event participation records',
-                ['member_id' => $memberId, 'cascade_deleted' => true]
+                'Permanently deleted Member account "' . (string)($target['full_name'] ?? ('#' . $userId))
+                    . '", member #' . $memberId . ', and all connected training attendance / event participation records',
+                [
+                    'member_id' => $memberId,
+                    'cascade_deleted' => true,
+                    'member_deleted' => $memberDeleted,
+                    'attendance_deleted' => $removed['attendance'],
+                    'attendance_checkins_deleted' => $removed['attendance_checkins'],
+                    'event_participants_deleted' => $removed['event_participants'],
+                ]
             );
 
             echo json_encode([
-                'success' => $deleted,
+                'success' => true,
                 'cascade_deleted' => true,
-                'message' => $deleted
-                    ? 'Member account and all connected training attendance and event participation records were deleted.'
-                    : 'Nothing to remove.',
+                'removed' => $removed,
+                'message' => 'Member account permanently deleted, along with '
+                    . $removed['attendance'] . ' attendance record(s) and '
+                    . $removed['event_participants'] . ' event participation record(s).',
             ]);
             exit;
         }
