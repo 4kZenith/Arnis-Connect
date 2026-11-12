@@ -9,7 +9,7 @@
         <p class="text-gray-400 text-sm mb-8 leading-relaxed">
             Permanently remove <br>
             <span id="deleteUserName" class="text-white font-bold text-base">User Name</span>? <br>
-            <span class="text-red-400/80 text-[11px] uppercase tracking-widest font-bold mt-2 block">This cannot be undone. Accounts that own records cannot be deleted — deactivate them instead.</span>
+            <span class="text-red-400/80 text-[11px] uppercase tracking-widest font-bold mt-2 block">This cannot be undone. Member accounts are deleted together with their training attendance and event participation records.</span>
         </p>
 
         <div id="deleteUserError" class="text-red-500 text-xs hidden mb-4"></div>

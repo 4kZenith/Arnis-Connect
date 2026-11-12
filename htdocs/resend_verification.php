@@ -39,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'SELECT user_id, full_name, username, email, role
                      FROM users
                      WHERE (username = :username OR email = :email)
-                       AND email_verification_token IS NOT NULL
                        AND email_verified_at IS NULL
+                       AND (email_verification_token IS NOT NULL OR role = \'Applicant\')
                      LIMIT 1'
                 );
                 $stmt->execute([':username' => $identifier, ':email' => $identifier]);
