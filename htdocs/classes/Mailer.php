@@ -145,4 +145,13 @@ class Mailer
             . '<p style="font-size:14px;color:#aaa;">If you did not ask for this, ignore this email. Your password stays the same.</p>';
         return $this->send($to, 'Reset your Arnis Connect password', $body, null, true);
     }
+
+    /** Plain-text notice; honours the "email notifications" setting. */
+    public function sendNotice(string $to, string $fullName, string $subject, string $message): bool
+    {
+        $body = '<p>Hello <strong>' . htmlspecialchars($fullName) . '</strong>,</p>'
+            . '<p>' . nl2br(htmlspecialchars($message)) . '</p>'
+            . '<p style="font-size:14px;color:#aaa;">Log in to Arnis Connect for details.</p>';
+        return $this->send($to, $subject, $body);
+    }
 }

@@ -14,6 +14,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../classes/PrivateTrainings.php';
 
 const ARNIS_RESTORE_TABLES = [
     'users',
@@ -29,6 +30,7 @@ const ARNIS_RESTORE_TABLES = [
     'event_documents',
     'achievements',
     'funds',
+    'private_training_requests',
 ];
 
 /* Tables that may be absent from older backup files without failing restore. */
@@ -36,6 +38,7 @@ const ARNIS_RESTORE_OPTIONAL_TABLES = [
     'rank_history',
     'rank_verification_history',
     'attendance_checkins',
+    'private_training_requests',
 ];
 
 const ARNIS_RESTORE_MAX_BYTES = 20971520; // 20 MB
@@ -117,6 +120,7 @@ try {
     }
 
     $db = (new Database())->connect();
+    PrivateTrainings::ensureSchema($db);
     $db->exec('SET FOREIGN_KEY_CHECKS = 0');
 
     try {

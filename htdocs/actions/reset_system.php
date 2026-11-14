@@ -15,6 +15,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../classes/PrivateTrainings.php';
 
 const ARNIS_RESET_TABLES = [
     'achievements',
@@ -23,6 +24,7 @@ const ARNIS_RESET_TABLES = [
     'event_documents',
     'event_participants',
     'funds',
+    'private_training_requests',
     'events',
     'trainings',
     'rank_history',
@@ -58,6 +60,7 @@ try {
     }
 
     $db = (new Database())->connect();
+    PrivateTrainings::ensureSchema($db);
 
     $kept = (int)$db->query("SELECT COUNT(*) FROM users WHERE role = 'SuperAdmin'")->fetchColumn();
     if ($kept < 1) {

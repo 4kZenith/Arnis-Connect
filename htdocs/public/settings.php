@@ -183,6 +183,11 @@ $csrfToken = arnisCsrfToken();
                             <input type="number" name="late_grace_minutes" min="0" max="180" step="1" value="<?= stE((string)$settings['late_grace_minutes']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
                             <p class="text-[10px] text-gray-500 mt-1">Checking in after this grace period is recorded as Late.</p>
                         </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Standard Private Session Fee (PHP)</label>
+                            <input type="number" name="private_session_fee" min="0" max="100000" step="0.01" value="<?= stE((string)$settings['private_session_fee']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Pre-filled when a coach approves a private training request. Members agree to this fee when they request; a different fee needs the member's acceptance.</p>
+                        </div>
                     </div>
                 </div>
 

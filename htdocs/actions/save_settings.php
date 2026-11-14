@@ -47,6 +47,7 @@ try {
     $geofenceRaw = trim((string)($_POST['default_geofence_m'] ?? '100'));
     $openBeforeRaw = trim((string)($_POST['checkin_open_minutes'] ?? '30'));
     $graceRaw = trim((string)($_POST['late_grace_minutes'] ?? '15'));
+    $privateFeeRaw = trim((string)($_POST['private_session_fee'] ?? '500'));
 
     if ($organizationName === '' || mb_strlen($organizationName) > 100) {
         settingsRedirect('error', 'Organization name is required and must be 100 characters or fewer.');
@@ -77,6 +78,9 @@ try {
     if (!ctype_digit($graceRaw) || (int)$graceRaw > 180) {
         settingsRedirect('error', 'Late grace period must be 0 to 180 minutes.');
     }
+    if (!is_numeric($privateFeeRaw) || (float)$privateFeeRaw < 0 || (float)$privateFeeRaw > 100000) {
+        settingsRedirect('error', 'Private session fee must be between 0 and 100,000.');
+    }
 
     $values = [
         'organization_name' => mb_substr($organizationName, 0, 100),
@@ -88,6 +92,7 @@ try {
         'default_geofence_m' => (string)$geofence,
         'checkin_open_minutes' => (string)(int)$openBeforeRaw,
         'late_grace_minutes' => (string)(int)$graceRaw,
+        'private_session_fee' => number_format((float)$privateFeeRaw, 2, '.', ''),
         'allow_registration' => isset($_POST['allow_registration']) ? '1' : '0',
         'email_notifications' => isset($_POST['email_notifications']) ? '1' : '0',
         'smtp_user' => mb_substr($smtpUser, 0, 150),

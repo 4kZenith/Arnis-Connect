@@ -24,7 +24,7 @@ if (!hasRole('SuperAdmin')) {
 $allowedModules = [
     'auth', 'members', 'events', 'event_participants', 'event_documents',
     'trainings', 'attendance', 'funds', 'achievements', 'users',
-    'registration', 'reports', 'settings', 'announcements',
+    'registration', 'reports', 'settings', 'announcements', 'private_trainings',
 ];
 
 $allowedActions = [
@@ -32,6 +32,7 @@ $allowedActions = [
     'login_failed', 'approve', 'reject', 'promote', 'status_change',
     'verify_email', 'resend_verification', 'settings_update',
     'announcement_create', 'announcement_archive', 'export',
+    'password_reset_request', 'password_reset',
 ];
 
 $filters = [
@@ -243,6 +244,7 @@ function alModuleLabel(string $module): string
         'reports' => 'Reports',
         'settings' => 'System Settings',
         'announcements' => 'Announcements',
+        'private_trainings' => 'Private Training',
     ];
     return $labels[$module] ?? ($module !== '' ? ucwords(str_replace('_', ' ', $module)) : '—');
 }

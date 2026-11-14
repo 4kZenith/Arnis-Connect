@@ -25,6 +25,7 @@ class Settings
         'default_geofence_m' => '100',
         'checkin_open_minutes' => '30',
         'late_grace_minutes' => '15',
+        'private_session_fee' => '500',
         'privacy_contact' => '',
         'smtp_host' => 'smtp-relay.brevo.com',
         'smtp_port' => '587',

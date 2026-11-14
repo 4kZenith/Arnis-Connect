@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../classes/PrivateTrainings.php';
 
 const ARNIS_BACKUP_TABLES = [
     'users',
@@ -26,6 +27,7 @@ const ARNIS_BACKUP_TABLES = [
     'event_documents',
     'achievements',
     'funds',
+    'private_training_requests',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -45,6 +47,7 @@ if (!hasRole('SuperAdmin')) {
 
 try {
     $db = (new Database())->connect();
+    PrivateTrainings::ensureSchema($db);
 
     $payload = [
         'app' => 'arnis-connect',
