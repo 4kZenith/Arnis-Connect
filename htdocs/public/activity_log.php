@@ -13,6 +13,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
+require_once __DIR__ . '/../classes/AuditLog.php';
 
 if (!hasRole('SuperAdmin')) {
     http_response_code(403);
@@ -71,46 +72,6 @@ if ($filters['start_date'] !== '' && $filters['end_date'] !== ''
 $hasFilters = $filters['module'] !== '' || $filters['action'] !== ''
     || $filters['actor'] !== '' || $filters['start_date'] !== '' || $filters['end_date'] !== '';
 
-/* ------------------------------------------------------- CSV export */
-$export = isset($_GET['export']) && $_GET['export'] === 'csv';
-if ($export) {
-    $db = (new Database())->connect();
-    $whereSql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
-    $stmt = $db->prepare(
-        'SELECT audit_id, actor_name, actor_role, action, module, target_table,
-                target_id, description, ip_address, created_at
-         FROM audit_logs' . $whereSql . '
-         ORDER BY created_at DESC, audit_id DESC'
-    );
-    foreach ($params as $k => $v) {
-        $stmt->bindValue($k, $v);
-    }
-    $stmt->execute();
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="audit_log_' . date('Ymd_His') . '.csv"');
-    header('Cache-Control: no-store, no-cache, must-revalidate');
-    $out = fopen('php://output', 'w');
-    fputcsv($out, ['ID', 'Actor', 'Role', 'Action', 'Module', 'Target Table', 'Target ID', 'Description', 'IP Address', 'Created At']);
-    foreach ($rows as $row) {
-        fputcsv($out, [
-            $row['audit_id'] ?? '',
-            $row['actor_name'] ?? '',
-            $row['actor_role'] ?? '',
-            $row['action'] ?? '',
-            $row['module'] ?? '',
-            $row['target_table'] ?? '',
-            $row['target_id'] ?? '',
-            $row['description'] ?? '',
-            $row['ip_address'] ?? '',
-            $row['created_at'] ?? '',
-        ]);
-    }
-    fclose($out);
-    exit;
-}
-
 /* ------------------------------------------------------- SQL construction */
 $where = [];
 $params = [];
@@ -138,6 +99,48 @@ if ($filters['end_date'] !== '') {
 
 $whereSql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
 
+/* ------------------------------------------------------- CSV export */
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    $db = (new Database())->connect();
+    AuditLog::ensureSchema($db);
+    $stmt = $db->prepare(
+        'SELECT audit_id, actor_name, actor_role, action, module, record_id,
+                description, ip_address, created_at
+         FROM audit_logs' . $whereSql . '
+         ORDER BY created_at DESC, audit_id DESC'
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="audit_log_' . date('Ymd_His') . '.csv"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['ID', 'Actor', 'Role', 'Action', 'Module', 'Record ID', 'Description', 'IP Address', 'Created At']);
+    foreach ($rows as $row) {
+        $line = [
+            $row['audit_id'] ?? '',
+            $row['actor_name'] ?? '',
+            $row['actor_role'] ?? '',
+            $row['action'] ?? '',
+            $row['module'] ?? '',
+            $row['record_id'] ?? '',
+            $row['description'] ?? '',
+            $row['ip_address'] ?? '',
+            $row['created_at'] ?? '',
+        ];
+        // Neutralise spreadsheet formulas in user-supplied text.
+        foreach ($line as $i => $cell) {
+            if (is_string($cell) && $cell !== '' && strpbrk($cell[0], '=+-@') !== false) {
+                $line[$i] = "'" . $cell;
+            }
+        }
+        fputcsv($out, $line);
+    }
+    fclose($out);
+    exit;
+}
+
 /* ------------------------------------------------------- fetch + paginate */
 $perPage       = 30;
 $requestedPage = max(1, (int)($_GET['page'] ?? 1));
@@ -154,6 +157,7 @@ $auditReady    = true;
 
 try {
     $db = (new Database())->connect();
+    AuditLog::ensureSchema($db);
 
     $statsStmt = $db->prepare(
         "SELECT
@@ -191,7 +195,7 @@ try {
 } catch (Throwable $e) {
     error_log('activity_log.php query error: ' . $e->getMessage());
     $auditReady = false;
-    $loadError = 'The audit log is not available yet. Run database migration 003, then reload this page.';
+    $loadError = 'The audit log is not available right now. Please reload the page.';
 }
 
 /* ----------------------------------------------------------------- helpers */

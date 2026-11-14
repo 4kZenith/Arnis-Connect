@@ -14,6 +14,51 @@ declare(strict_types=1);
  */
 class AuditLog
 {
+    private static bool $schemaChecked = false;
+
+    /**
+     * Older databases were created with an audit_logs table shaped
+     * (id, target_table, target_id) that migration 003 skipped because the
+     * table already existed. Upgrade it in place to the
+     * (audit_id, record_id, meta_json) shape this class writes.
+     */
+    public static function ensureSchema(PDO $db): void
+    {
+        if (self::$schemaChecked) {
+            return;
+        }
+        self::$schemaChecked = true;
+
+        try {
+            $cols = $db->query(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_logs'"
+            )->fetchAll(PDO::FETCH_COLUMN);
+            if ($cols === []) {
+                return;
+            }
+
+            $changes = [];
+            if (!in_array('audit_id', $cols, true) && in_array('id', $cols, true)) {
+                $changes[] = 'CHANGE `id` `audit_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT';
+            }
+            if (!in_array('record_id', $cols, true)) {
+                $changes[] = 'ADD `record_id` INT(11) DEFAULT NULL AFTER `module`';
+            }
+            if (!in_array('meta_json', $cols, true)) {
+                $changes[] = 'ADD `meta_json` TEXT DEFAULT NULL AFTER `description`';
+            }
+            if ($changes !== []) {
+                $db->exec('ALTER TABLE `audit_logs` ' . implode(', ', $changes));
+            }
+            if (in_array('target_id', $cols, true) && !in_array('record_id', $cols, true)) {
+                $db->exec('UPDATE `audit_logs` SET `record_id` = `target_id` WHERE `record_id` IS NULL');
+            }
+        } catch (Throwable $e) {
+            error_log('AuditLog::ensureSchema failed: ' . $e->getMessage());
+        }
+    }
+
     public static function record(
         PDO $db,
         string $action,
@@ -22,6 +67,7 @@ class AuditLog
         string $description = '',
         array $meta = []
     ): void {
+        self::ensureSchema($db);
         try {
             $userId = isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
             $actorName = trim((string)($_SESSION['full_name'] ?? ''));
@@ -87,6 +133,7 @@ class AuditLog
         ?int $recordId,
         string $description
     ): void {
+        self::ensureSchema($db);
         try {
             $stmt = $db->prepare(
                 'INSERT INTO audit_logs

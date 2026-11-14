@@ -7,6 +7,7 @@ require_once __DIR__ . '/../classes/Members.php';
 require_once __DIR__ . '/../classes/Trainings.php';
 require_once __DIR__ . '/../classes/Events.php';
 require_once __DIR__ . '/../classes/Funds.php';
+require_once __DIR__ . '/../classes/AuditLog.php';
 
 /*
  * config/permissions.php is the single source of truth for the RBAC matrix.
@@ -532,6 +533,7 @@ try {
     $paginatedActivities = [];
     $auditReady = true;
     try {
+        AuditLog::ensureSchema($db);
         $auditWhere = '';
         $auditParams = [];
         // Admin/Head Coach/Officer/Coach see all activity; only Member/Applicant see own
