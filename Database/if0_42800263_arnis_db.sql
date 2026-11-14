@@ -189,15 +189,15 @@ INSERT INTO `attendance_checkins` (`checkin_id`, `training_id`, `member_id`, `me
 --
 
 CREATE TABLE `audit_logs` (
-  `id` int(11) UNSIGNED NOT NULL,
+  `audit_id` bigint(20) UNSIGNED NOT NULL,
   `user_id` int(11) DEFAULT NULL,
   `actor_name` varchar(100) NOT NULL DEFAULT 'System',
   `actor_role` varchar(50) DEFAULT NULL,
   `action` varchar(50) NOT NULL,
   `module` varchar(50) NOT NULL,
-  `target_table` varchar(50) DEFAULT NULL,
-  `target_id` int(11) DEFAULT NULL,
+  `record_id` int(11) DEFAULT NULL,
   `description` varchar(500) DEFAULT NULL,
+  `meta_json` text DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL,
   `user_agent` varchar(255) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
@@ -720,7 +720,7 @@ ALTER TABLE `attendance_checkins`
 -- Indexes for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  ADD PRIMARY KEY (`id`),
+  ADD PRIMARY KEY (`audit_id`),
   ADD KEY `idx_audit_logs_user_id` (`user_id`),
   ADD KEY `idx_audit_logs_created_at` (`created_at`),
   ADD KEY `idx_audit_logs_module_action` (`module`,`action`);
@@ -897,7 +897,7 @@ ALTER TABLE `attendance_checkins`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `audit_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `email_verification_tokens`

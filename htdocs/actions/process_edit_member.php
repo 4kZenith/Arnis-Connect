@@ -39,8 +39,8 @@ $email = trim((string)($_POST['email'] ?? ''));
 $address = trim((string)($_POST['address'] ?? ''));
 $heightRaw = $_POST['height'] ?? null;
 $weightRaw = $_POST['weight'] ?? null;
-    $playerCategory = isset($_POST['player_category']) ? trim((string)$_POST['player_category']) : (string)($existing['player_category'] ?? 'Public');
-    $trainingPreference = isset($_POST['training_preference']) ? trim((string)$_POST['training_preference']) : (string)($existing['training_preference'] ?? 'Group');
+$playerCategory = isset($_POST['player_category']) ? trim((string)$_POST['player_category']) : null;
+$trainingPreference = isset($_POST['training_preference']) ? trim((string)$_POST['training_preference']) : null;
 $affiliatedSchool = trim((string)($_POST['affiliated_school'] ?? ''));
 $guardianName = trim((string)($_POST['guardian_name'] ?? ''));
 $guardianContact = trim((string)($_POST['guardian_contact'] ?? ''));
@@ -73,11 +73,11 @@ if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-if (!in_array($playerCategory, $validCategories, true)) {
+if ($playerCategory !== null && !in_array($playerCategory, $validCategories, true)) {
     echo json_encode(['success' => false, 'message' => 'Invalid player category selected.']);
     exit;
 }
-if (!in_array($trainingPreference, $validPreferences, true)) {
+if ($trainingPreference !== null && !in_array($trainingPreference, $validPreferences, true)) {
     echo json_encode(['success' => false, 'message' => 'Invalid training preference selected.']);
     exit;
 }
@@ -110,6 +110,23 @@ try {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Member not found.']);
         exit;
+    }
+    // Fields a form leaves out (disabled inputs are not submitted) keep their stored value.
+    $playerCategory = $playerCategory ?? (string)($existing['player_category'] ?? 'Public');
+    $trainingPreference = $trainingPreference ?? (string)($existing['training_preference'] ?? 'Group');
+
+    $profileImg = $existing['profile_img'] ?? null;
+    if ($cloudinaryUrl !== '') {
+        $imgParts = parse_url($cloudinaryUrl);
+        $imgHost = strtolower((string)($imgParts['host'] ?? ''));
+        if (strtolower((string)($imgParts['scheme'] ?? '')) !== 'https'
+            || ($imgHost !== 'res.cloudinary.com' && !str_ends_with($imgHost, '.res.cloudinary.com'))
+            || strlen($cloudinaryUrl) > 255) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Only Cloudinary image URLs are accepted for the profile photo.']);
+            exit;
+        }
+        $profileImg = $cloudinaryUrl;
     }
 
     $writeScope = permissionValue('members', 'write');
@@ -158,7 +175,7 @@ try {
         echo json_encode(['success' => false, 'message' => 'Invalid status selected.']);
         exit;
     }
-    if (!in_array($memberTypeRaw, ['Head Coach', 'Coach', 'Trainer', 'Athlete', 'Player'], true)) {
+    if (!in_array($memberTypeRaw, ['Head Coach', 'Coach', 'Player'], true)) {
         echo json_encode(['success' => false, 'message' => 'Invalid member position selected.']);
         exit;
     }
@@ -234,7 +251,7 @@ try {
         'guardian_name' => $guardianName !== '' ? $guardianName : null,
         'guardian_contact' => $guardianContact !== '' ? $guardianContact : null,
         'payment_notes' => $paymentNotes !== '' ? $paymentNotes : null,
-        'profile_img' => $cloudinaryUrl !== '' ? $cloudinaryUrl : null,
+        'profile_img' => $profileImg,
     ];
 
     $result = $membersModel->update($memberId, $data, (int)$_SESSION['user_id']);

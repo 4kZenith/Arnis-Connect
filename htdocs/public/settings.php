@@ -130,6 +130,15 @@ $csrfToken = arnisCsrfToken();
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">From Name</label>
                             <input type="text" name="from_name" maxlength="100" value="<?= stE((string)$settings['from_name']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
                         </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">SMTP Login (Brevo)</label>
+                            <input type="text" name="smtp_user" maxlength="150" autocomplete="off" value="<?= stE((string)$settings['smtp_user']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50" placeholder="xxxxxxx@smtp-brevo.com">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">SMTP Key</label>
+                            <input type="password" name="smtp_pass" maxlength="255" autocomplete="new-password" value="" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50" placeholder="<?= trim((string)$settings['smtp_pass']) !== '' ? 'Saved - leave blank to keep' : 'Paste your Brevo SMTP key' ?>">
+                            <p class="text-[10px] text-gray-500 mt-1">Required for verification, password reset and notification emails.</p>
+                        </div>
                         <label class="flex items-start gap-3 md:col-span-2 text-xs text-gray-300">
                             <input type="checkbox" name="email_notifications" value="1" <?= !empty($settings['email_notifications']) && $settings['email_notifications'] !== '0' ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500">
                             <span>Send event, training, and announcement emails. Requires working PHP mail on the host.</span>
@@ -157,12 +166,27 @@ $csrfToken = arnisCsrfToken();
                         <div>
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Face Match Threshold</label>
                             <input type="number" name="face_match_threshold" min="0.10" max="1.00" step="0.01" value="<?= stE((string)$settings['face_match_threshold']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
-                            <p class="text-[10px] text-gray-500 mt-1">0.10 to 1.00. Higher is stricter.</p>
+                            <p class="text-[10px] text-gray-500 mt-1">0.10 to 1.00. Lower is stricter; 0.60 is recommended.</p>
                         </div>
                         <div>
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Default Geofence (metres)</label>
                             <input type="number" name="default_geofence_m" min="5" max="5000" step="1" value="<?= stE((string)$settings['default_geofence_m']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
                             <p class="text-[10px] text-gray-500 mt-1">Used as the starting value when creating a training session.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Check-in Opens (minutes before start)</label>
+                            <input type="number" name="checkin_open_minutes" min="0" max="240" step="1" value="<?= stE((string)$settings['checkin_open_minutes']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Check-in closes when the session ends. Members who never check in stay Absent.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Late After (minutes past start)</label>
+                            <input type="number" name="late_grace_minutes" min="0" max="180" step="1" value="<?= stE((string)$settings['late_grace_minutes']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Checking in after this grace period is recorded as Late.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Standard Private Session Fee (PHP)</label>
+                            <input type="number" name="private_session_fee" min="0" max="100000" step="0.01" value="<?= stE((string)$settings['private_session_fee']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Pre-filled when a coach approves a private training request. Members agree to this fee when they request; a different fee needs the member's acceptance.</p>
                         </div>
                     </div>
                 </div>

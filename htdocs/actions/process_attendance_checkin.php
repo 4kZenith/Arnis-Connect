@@ -11,6 +11,8 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Attendance.php';
 require_once __DIR__ . '/../classes/Trainings.php';
 require_once __DIR__ . '/../classes/Members.php';
+require_once __DIR__ . '/../classes/Settings.php';
+require_once __DIR__ . '/../includes/checkin_window.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -59,6 +61,8 @@ try {
      * users.member_id was never linked.
      */
     $writeScope = permissionValue('attendance', 'write');
+    $isSelfCheckin = ($writeScope === 'own');
+    $settings = new Settings($db);
     if ($writeScope !== true) {
         if ($writeScope === 'own') {
             $currentMemberId = function_exists('resolveSessionMemberId') ? resolveSessionMemberId($db) : 0;
@@ -80,10 +84,19 @@ try {
         checkinError(404, 'Training session not found or has been voided.');
     }
     
-    // Check if training is today or past (allow check-in for today's sessions)
-    $today = date('Y-m-d');
-    if ($training['training_date'] > $today) {
-        checkinError(400, 'Cannot check in for future training sessions.');
+    $window = arnisCheckinWindow(
+        (string)$training['training_date'],
+        $training['start_time'] ?? null,
+        $training['end_time'] ?? null,
+        (int)$settings->get('checkin_open_minutes', '30'),
+        (int)$settings->get('late_grace_minutes', '15')
+    );
+    if ($window['state'] === 'upcoming') {
+        checkinError(400, 'Check-in is not open yet. It opens at '
+            . arnisFormatManila('M d, Y h:i A', (int)$window['opens_at']) . '.');
+    }
+    if ($isSelfCheckin && $window['state'] === 'closed') {
+        checkinError(400, 'Check-in for this session has closed.');
     }
     
     /*
@@ -107,6 +120,11 @@ try {
         && (int)($existing['is_voided'] ?? 0) === 0
         && in_array((string)($existing['status'] ?? ''), ['Present', 'Late'], true)) {
         checkinError(409, 'You are already checked in for this session. Current status: ' . $existing['status']);
+    }
+
+    // Members may only check in to sessions a coach has put them on.
+    if ($isSelfCheckin && ($existingAttendanceId <= 0 || (int)($existing['is_voided'] ?? 0) !== 0)) {
+        checkinError(403, 'You are not on the roster for this training session. Ask your coach to add you.');
     }
     
     // Verify member is eligible for this training (based on target_group and player_category)
@@ -142,7 +160,14 @@ try {
     $faceScore = null;
     $faceDescriptorInput = isset($_POST['face_descriptor']) ? trim((string)$_POST['face_descriptor']) : '';
     $storedDescriptor = trim((string)($member['face_descriptor'] ?? ''));
-    
+
+    if ($isSelfCheckin && $storedDescriptor === '') {
+        checkinError(400, 'Enroll your face on My Profile before checking in.');
+    }
+    if ($isSelfCheckin && $faceDescriptorInput === '') {
+        checkinError(400, 'Face verification required. Please scan your face to check in.');
+    }
+
     if ($faceDescriptorInput !== '' && $storedDescriptor !== '') {
         // Verify the captured descriptor against the member's enrolled one.
         $inputDescriptor = json_decode($faceDescriptorInput, true);
@@ -161,8 +186,11 @@ try {
         }
         $distance = sqrt($distance);
 
-        // 0.6 is the face-api.js default matching threshold (lower = stricter).
-        $threshold = 0.6;
+        // Maximum descriptor distance accepted (lower = stricter).
+        $threshold = (float)$settings->get('face_match_threshold', '0.60');
+        if ($threshold < 0.1 || $threshold > 1.0) {
+            $threshold = 0.6;
+        }
 
         if ($distance > $threshold) {
             checkinError(403, 'Face verification failed - the captured face does not match your enrolled face. Please face the camera in good lighting and try again.');
@@ -183,7 +211,9 @@ try {
     $userLng = isset($_POST['longitude']) && is_numeric($_POST['longitude']) ? (float)$_POST['longitude'] : null;
     $venueLat = isset($training['venue_lat']) && $training['venue_lat'] !== null ? (float)$training['venue_lat'] : null;
     $venueLng = isset($training['venue_lng']) && $training['venue_lng'] !== null ? (float)$training['venue_lng'] : null;
-    $geofenceM = isset($training['geofence_m']) && $training['geofence_m'] !== null ? (int)$training['geofence_m'] : 100;
+    $geofenceM = isset($training['geofence_m']) && $training['geofence_m'] !== null
+        ? (int)$training['geofence_m']
+        : (int)$settings->get('default_geofence_m', '100');
     
     if ($userLat !== null && $userLng !== null && $venueLat !== null && $venueLng !== null) {
         // Haversine formula for distance calculation
@@ -209,26 +239,7 @@ try {
     }
     // If no venue coordinates, allow check-in without geofence check
     
-    // Determine status based on time window and session duration
-    $status = 'Present';
-    $startTime = $training['start_time'] ?? null;
-    $endTime   = $training['end_time'] ?? null;
-    $nowTs     = time();
-
-    // Block check-in before the session starts
-    if ($startTime !== null && $nowTs < strtotime($startTime)) {
-        checkinError(400, 'Check-in is not yet open. Session starts at ' . date('h:i A', strtotime($startTime)) . '.');
-    }
-
-    // Mark Late if checked in past the halfway point of the session
-    if ($startTime !== null && $endTime !== null) {
-        $startTs = strtotime($startTime);
-        $endTs   = strtotime($endTime);
-        $duration = $endTs - $startTs;
-        if ($duration > 0 && $nowTs > $startTs + ($duration / 2)) {
-            $status = 'Late';
-        }
-    }
+    $status = $window['late'] ? 'Late' : 'Present';
     
     $method = ($faceDescriptorInput !== '' && $storedDescriptor !== '') ? 'FaceGPS' : 'Manual';
     $flagged = 0;

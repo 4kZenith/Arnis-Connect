@@ -27,9 +27,13 @@ class Mailer
         return $this->settings->enabled('email_notifications');
     }
 
-    public function send(string $to, string $subject, string $htmlBody, ?string $replyTo = null): bool
+    /**
+     * $accountEmail = true for verification / password-reset mail, which must
+     * go out even when general email notifications are switched off.
+     */
+    public function send(string $to, string $subject, string $htmlBody, ?string $replyTo = null, bool $accountEmail = false): bool
     {
-        if (!$this->notificationsEnabled()) {
+        if (!$accountEmail && !$this->notificationsEnabled()) {
             return false;
         }
 
@@ -51,11 +55,9 @@ class Mailer
         $smtpUser = trim($this->settings->get('smtp_user'));
         $smtpPass = trim($this->settings->get('smtp_pass'));
 
-        if ($smtpUser === '') {
-            $smtpUser = 'c1c474001@smtp-brevo.com';
-        }
-        if ($smtpPass === '') {
-            $smtpPass = 'xsmtpsib-2f66661c357f3388bd32426c67a5284239058a2242bc1ddbe68dfff4e2752b1d-L1PinV0LmS6LwKQX';
+        if ($smtpUser === '' || $smtpPass === '') {
+            error_log('Mailer: SMTP login is not configured (Settings -> Email).');
+            return false;
         }
 
         $subject = trim(preg_replace('/[\r\n]+/', ' ', $subject) ?? $subject);
@@ -129,6 +131,27 @@ class Mailer
             . '<a href="' . htmlspecialchars($verifyUrl) . '" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Verify Email</a>'
             . '</div>'
             . '<p style="font-size:14px;color:#aaa;">If you did not sign up, ignore this email.</p>';
-        return $this->send($to, 'Verify your Arnis Connect account', $body);
+        return $this->send($to, 'Verify your Arnis Connect account', $body, null, true);
+    }
+
+    public function sendPasswordReset(string $to, string $fullName, string $token): bool
+    {
+        $resetUrl = 'https://arnis-connect.great-site.net/reset_password.php?token=' . urlencode($token);
+        $body = '<p>Hello <strong>' . htmlspecialchars($fullName) . '</strong>,</p>'
+            . '<p>We received a request to reset your Arnis Connect password. This link works once and expires in 1 hour:</p>'
+            . '<div style="text-align:center;margin:24px 0;">'
+            . '<a href="' . htmlspecialchars($resetUrl) . '" style="background:#a855f7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;">Reset Password</a>'
+            . '</div>'
+            . '<p style="font-size:14px;color:#aaa;">If you did not ask for this, ignore this email. Your password stays the same.</p>';
+        return $this->send($to, 'Reset your Arnis Connect password', $body, null, true);
+    }
+
+    /** Plain-text notice; honours the "email notifications" setting. */
+    public function sendNotice(string $to, string $fullName, string $subject, string $message): bool
+    {
+        $body = '<p>Hello <strong>' . htmlspecialchars($fullName) . '</strong>,</p>'
+            . '<p>' . nl2br(htmlspecialchars($message)) . '</p>'
+            . '<p style="font-size:14px;color:#aaa;">Log in to Arnis Connect for details.</p>';
+        return $this->send($to, $subject, $body);
     }
 }

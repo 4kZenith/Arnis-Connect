@@ -10,6 +10,8 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Members.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/Settings.php';
+require_once __DIR__ . '/../includes/checkin_window.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -87,20 +89,20 @@ try {
         eventCheckinError(404, 'Event not found or has been voided.');
     }
 
-    // Block check-in before the event starts
-    $startTime = $event['start_time'] ?? null;
-    $endTime   = $event['end_time'] ?? null;
-    $nowTs     = time();
-    $startTs   = $startTime !== null ? strtotime($startTime) : null;
-
-    $today = date('Y-m-d');
-    $eventDate = (string)($event['event_date'] ?? '');
-    if ($eventDate > $today) {
-        eventCheckinError(400, 'Cannot check in for future events.');
+    $settings = new Settings($db);
+    $window = arnisCheckinWindow(
+        (string)($event['event_date'] ?? ''),
+        $event['start_time'] ?? null,
+        $event['end_time'] ?? null,
+        (int)$settings->get('checkin_open_minutes', '30'),
+        (int)$settings->get('late_grace_minutes', '15')
+    );
+    if ($window['state'] === 'upcoming') {
+        eventCheckinError(400, 'Check-in is not open yet. It opens at '
+            . arnisFormatManila('M d, Y h:i A', (int)$window['opens_at']) . '.');
     }
-
-    if ($startTs !== null && $nowTs < $startTs) {
-        eventCheckinError(400, 'Check-in is not yet open. Event starts at ' . date('h:i A', $startTs) . '.');
+    if ($isSelfCheckin && $window['state'] === 'closed') {
+        eventCheckinError(400, 'Check-in for this event has closed.');
     }
 
     $pStmt = $db->prepare('SELECT participant_id, attendance_status FROM event_participants WHERE event_id = :eid AND member_id = :mid AND is_voided = 0 LIMIT 1');
@@ -128,6 +130,13 @@ try {
     $faceDescriptorInput = isset($_POST['face_descriptor']) ? trim((string)$_POST['face_descriptor']) : '';
     $storedDescriptor = trim((string)($member['face_descriptor'] ?? ''));
 
+    if ($isSelfCheckin && $storedDescriptor === '') {
+        eventCheckinError(400, 'Enroll your face on My Profile before checking in.');
+    }
+    if ($isSelfCheckin && $faceDescriptorInput === '') {
+        eventCheckinError(400, 'Face verification required. Please scan your face to check in.');
+    }
+
     if ($faceDescriptorInput !== '' && $storedDescriptor !== '') {
         $inputDescriptor = json_decode($faceDescriptorInput, true);
         $stored = json_decode($storedDescriptor, true);
@@ -140,7 +149,10 @@ try {
             $distance += $diff * $diff;
         }
         $distance = sqrt($distance);
-        $threshold = 0.6;
+        $threshold = (float)$settings->get('face_match_threshold', '0.60');
+        if ($threshold < 0.1 || $threshold > 1.0) {
+            $threshold = 0.6;
+        }
         if ($distance > $threshold) {
             eventCheckinError(403, 'Face verification failed. Please face the camera in good lighting and try again.');
         }
@@ -157,7 +169,9 @@ try {
     $userLng = isset($_POST['longitude']) && is_numeric($_POST['longitude']) ? (float)$_POST['longitude'] : null;
     $venueLat = isset($event['venue_lat']) && $event['venue_lat'] !== null ? (float)$event['venue_lat'] : null;
     $venueLng = isset($event['venue_lng']) && $event['venue_lng'] !== null ? (float)$event['venue_lng'] : null;
-    $geofenceM = isset($event['geofence_m']) && $event['geofence_m'] !== null ? (int)$event['geofence_m'] : 100;
+    $geofenceM = isset($event['geofence_m']) && $event['geofence_m'] !== null
+        ? (int)$event['geofence_m']
+        : (int)$settings->get('default_geofence_m', '100');
 
     if ($userLat !== null && $userLng !== null && $venueLat !== null && $venueLng !== null) {
         $earthRadius = 6371000;
@@ -177,15 +191,7 @@ try {
         eventCheckinError(400, 'Location access required. Please enable GPS and try again.');
     }
 
-    // Mark Late if checked in past the halfway point of the event
-    $status = 'Present';
-    if ($startTs !== null && $endTime !== null) {
-        $endTs = strtotime($endTime);
-        $duration = $endTs - $startTs;
-        if ($duration > 0 && $nowTs > $startTs + ($duration / 2)) {
-            $status = 'Late';
-        }
-    }
+    $status = $window['late'] ? 'Late' : 'Present';
     $method = ($faceDescriptorInput !== '' && $storedDescriptor !== '') ? 'FaceGPS' : 'Manual';
     $userId = (int)($_SESSION['user_id'] ?? 0);
 

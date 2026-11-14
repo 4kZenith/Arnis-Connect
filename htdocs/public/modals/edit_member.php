@@ -58,9 +58,7 @@
             <div>
                 <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Member Role</label>
                 <select name="member_type" id="edit_m_member_type" class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none text-white appearance-none cursor-pointer">
-                    <option value="Player">Player</option>
-                    <option value="Athlete">Athlete</option>
-                    <option value="Trainer">Trainer</option>
+                    <option value="Player">Member</option>
                     <option value="Coach">Coach</option>
                     <option value="Head Coach">Head Coach</option>
                 </select>

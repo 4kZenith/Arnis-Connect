@@ -466,6 +466,15 @@ class Members
         }
     }
 
+    /**
+     * Insert only the member profile for a login the caller creates itself
+     * (Users -> Add New User). The caller owns the transaction.
+     */
+    public function createProfileForAccount(array $data, int $createdBy): int
+    {
+        return (int)$this->insertMember($data, $createdBy)['member_id'];
+    }
+
     public function create(array $data, int $createdBy): array
     {
         try {
