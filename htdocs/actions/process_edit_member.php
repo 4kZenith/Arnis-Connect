@@ -175,7 +175,7 @@ try {
         echo json_encode(['success' => false, 'message' => 'Invalid status selected.']);
         exit;
     }
-    if (!in_array($memberTypeRaw, ['Head Coach', 'Coach', 'Trainer', 'Athlete', 'Player'], true)) {
+    if (!in_array($memberTypeRaw, ['Head Coach', 'Coach', 'Player'], true)) {
         echo json_encode(['success' => false, 'message' => 'Invalid member position selected.']);
         exit;
     }

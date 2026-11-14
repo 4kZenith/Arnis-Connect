@@ -217,9 +217,6 @@ function buildQuery(array $filters, int $page): string {
                         Pending Approvals <span class="ml-2 inline-flex items-center justify-center min-w-[24px] px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300 text-[10px]"><?= (int)$pendingApprovalCount ?></span>
                     </a>
                     <?php endif; ?>
-                    <button type="button" onclick="openMemberModal()" class="px-5 sm:px-6 py-4 rounded-full font-bold text-xs sm:text-sm whitespace-nowrap transition <?= $canModifyMembers ? 'bg-accent-purple hover:opacity-90 cursor-pointer' : 'bg-gray-600 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?>>
-                        + Add Member
-                    </button>
             </div>
 
             <div class="card-bg rounded-2xl sm:rounded-3xl overflow-hidden">
@@ -425,7 +422,6 @@ function buildQuery(array $filters, int $page): string {
     window.arnisMemberFieldPermissions = <?= json_encode($memberFieldPermissions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
 
-    <?php include_once "modals/add_member.php"; ?>
     <?php include_once "modals/void_confirmation.php"; ?>
     <?php include_once "modals/user_menu.php"; ?>
     <?php include_once "modals/edit_member.php"; ?>

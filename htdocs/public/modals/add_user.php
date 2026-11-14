@@ -52,13 +52,36 @@
                        class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-purple-500 transition text-white">
             </div>
 
-            <div>
-                <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Linked Member ID (optional)</label>
-                <input type="number" name="member_id" min="1" step="1" placeholder="e.g. 42"
-                       class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-purple-500 transition text-white">
-                <p class="text-[9px] text-gray-600 mt-2 tracking-wider">
-                    Links this login to a Members record so Member/Player accounts can open their own profile.
-                </p>
+            <div id="addUserMemberFields" class="hidden space-y-5 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4">
+                <p class="text-[10px] text-purple-300 uppercase font-bold tracking-widest">Member Profile</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Date of Birth</label>
+                        <input type="date" name="dob" max="<?= htmlspecialchars(date('Y-m-d'), ENT_QUOTES, 'UTF-8') ?>"
+                               class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-purple-500 transition text-white">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Contact Number</label>
+                        <input type="text" name="contact_number" maxlength="20" placeholder="09XXXXXXXXX"
+                               class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-purple-500 transition text-white">
+                    </div>
+                </div>
+                <div id="addUserCategoryField">
+                    <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Player Category</label>
+                    <select name="player_category" class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none appearance-none cursor-pointer text-white border border-transparent focus:border-purple-500 transition">
+                        <option value="Public">Public (free group training)</option>
+                        <option value="Private">Private (paid private training)</option>
+                        <option value="Mixed">Mixed (both)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Link Existing Member ID (optional)</label>
+                    <input type="number" name="member_id" min="1" step="1" placeholder="Leave blank to create a new profile"
+                           class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-purple-500 transition text-white">
+                    <p class="text-[9px] text-gray-600 mt-2 tracking-wider">
+                        Only use this for a member record that already exists without a login.
+                    </p>
+                </div>
             </div>
 
             <div>
@@ -151,12 +174,26 @@ function createToastContainer() {
     return container;
 }
 
+function syncAddUserMemberFields() {
+    const form = document.getElementById('addUserForm');
+    const role = form.elements['role'].value;
+    const needsProfile = ['Head Coach', 'Coach/Trainer', 'Member'].includes(role);
+    const linking = form.elements['member_id'].value.trim() !== '';
+    document.getElementById('addUserMemberFields').classList.toggle('hidden', !needsProfile);
+    document.getElementById('addUserCategoryField').classList.toggle('hidden', role !== 'Member');
+    form.elements['dob'].required = needsProfile && !linking;
+    form.elements['contact_number'].required = needsProfile && !linking;
+}
+
 // Handle form submission
 document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('addUserForm');
     if (!form) {
         return;
     }
+    form.elements['role'].addEventListener('change', syncAddUserMemberFields);
+    form.elements['member_id'].addEventListener('input', syncAddUserMemberFields);
+    form.addEventListener('reset', () => setTimeout(syncAddUserMemberFields, 0));
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
