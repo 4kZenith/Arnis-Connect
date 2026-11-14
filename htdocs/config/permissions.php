@@ -78,7 +78,7 @@ return [
         'Head Coach' => ['read' => 'own_events', 'write' => 'own_events', 'delete' => false],
         'Officer' => ['read' => true, 'write' => false, 'delete' => false],
         'Coach/Trainer' => ['read' => 'own_events', 'write' => 'own_events', 'delete' => false],
-        'Member' => ['read' => true, 'write' => false, 'delete' => false],
+        'Member' => ['read' => 'own', 'write' => false, 'delete' => false],
         'Applicant' => ['read' => false, 'write' => false, 'delete' => false],
     ],
     'achievements' => [

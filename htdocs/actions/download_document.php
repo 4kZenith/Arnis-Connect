@@ -179,7 +179,7 @@ try {
 
     $stmt = $db->prepare(
         "SELECT d.document_id, d.event_id, d.file_path, d.file_type,
-                e.event_name, e.created_by AS event_created_by
+                e.event_name, e.created_by AS event_created_by, e.handler_id
          FROM event_documents d
          JOIN events e ON e.event_id = d.event_id
          WHERE d.document_id = :id
@@ -201,8 +201,9 @@ try {
      */
     if ($readPerm === 'own_events' || $readPerm === 'own') {
         $isParticipant = false;
+        $viewerMemberId = function_exists('resolveSessionMemberId') ? resolveSessionMemberId($db) : (int)($_SESSION['member_id'] ?? 0);
 
-        if ($readPerm === 'own' && (int)($_SESSION['member_id'] ?? 0) > 0) {
+        if ($viewerMemberId > 0) {
             $check = $db->prepare(
                 "SELECT participant_id
                  FROM event_participants
@@ -213,13 +214,15 @@ try {
             );
             $check->execute([
                 ':event_id' => (int)$document['event_id'],
-                ':member_id' => (int)$_SESSION['member_id'],
+                ':member_id' => $viewerMemberId,
             ]);
             $isParticipant = (bool)$check->fetch();
         }
 
-        $isEventOwner = (int)($document['event_created_by'] ?? 0) > 0
-            && (int)$document['event_created_by'] === (int)($_SESSION['user_id'] ?? 0);
+        $isEventOwner = ((int)($document['event_created_by'] ?? 0) > 0
+                && (int)$document['event_created_by'] === (int)($_SESSION['user_id'] ?? 0))
+            || ($readPerm === 'own_events' && $viewerMemberId > 0
+                && (int)($document['handler_id'] ?? 0) === $viewerMemberId);
 
         if (!$isParticipant && !$isEventOwner) {
             arnisDocJsonError('You do not have permission to download this document.', 403);
