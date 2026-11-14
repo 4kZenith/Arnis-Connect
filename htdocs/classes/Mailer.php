@@ -95,6 +95,77 @@ class Mailer
         }
     }
 
+    /**
+     * One announcement to many people. Recipients are BCC'd so they cannot
+     * see each other's addresses. Returns how many addresses were accepted.
+     *
+     * @param string[] $recipients
+     */
+    public function sendBulk(array $recipients, string $subject, string $htmlBody): int
+    {
+        if (!$this->notificationsEnabled()) {
+            return 0;
+        }
+
+        $valid = [];
+        foreach ($recipients as $recipient) {
+            $recipient = trim((string)$recipient);
+            if ($recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+                $valid[strtolower($recipient)] = $recipient;
+            }
+        }
+        if ($valid === []) {
+            return 0;
+        }
+
+        $org = $this->settings->get('organization_name', 'Arnis Connect');
+        $fromEmail = trim($this->settings->get('from_email'));
+        if ($fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            $fromEmail = 'christpartosa9@gmail.com';
+        }
+        $fromName = trim($this->settings->get('from_name', $org));
+        if ($fromName === '') {
+            $fromName = $org;
+        }
+        $smtpUser = trim($this->settings->get('smtp_user'));
+        $smtpPass = trim($this->settings->get('smtp_pass'));
+        if ($smtpUser === '' || $smtpPass === '') {
+            error_log('Mailer: SMTP login is not configured (Settings -> Email).');
+            return 0;
+        }
+
+        $subject = mb_substr(trim(preg_replace('/[\r\n]+/', ' ', $subject) ?? $subject), 0, 180);
+        $body = $this->logoHtml() . $this->wrapHtml($htmlBody, $org);
+
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host       = $this->settings->get('smtp_host', 'smtp-relay.brevo.com');
+            $mail->SMTPAuth   = true;
+            $mail->Username   = $smtpUser;
+            $mail->Password   = $smtpPass;
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = (int)$this->settings->get('smtp_port', '587');
+            $mail->setFrom($fromEmail, $fromName);
+            // Brevo needs a To address. The club inbox gets the copy; everyone else is BCC.
+            $mail->addAddress($fromEmail, $fromName);
+            foreach ($valid as $address) {
+                if (strcasecmp($address, $fromEmail) !== 0) {
+                    $mail->addBCC($address);
+                }
+            }
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body    = $body;
+            $mail->AltBody = strip_tags($htmlBody);
+            $mail->send();
+            return count($valid);
+        } catch (Exception $e) {
+            error_log('Mailer::sendBulk SMTP error: ' . $mail->ErrorInfo);
+            return 0;
+        }
+    }
+
     private function logoHtml(): string
     {
         $logoPath = __DIR__ . '/../../arnis-logo.png';
