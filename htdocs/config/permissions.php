@@ -35,7 +35,7 @@ declare(strict_types=1);
 return [
     'members' => [
         'SuperAdmin' => ['read' => true, 'write' => true, 'delete' => true],
-        'Head Coach' => ['read' => true, 'write' => 'own_trainees', 'delete' => false],
+        'Head Coach' => ['read' => true, 'write' => true, 'delete' => false],
         'Officer' => ['read' => true, 'write' => false, 'delete' => false],
         'Coach/Trainer' => ['read' => 'own_trainees', 'write' => 'own_trainees', 'delete' => false],
         'Member' => ['read' => false, 'write' => 'own', 'delete' => false],
