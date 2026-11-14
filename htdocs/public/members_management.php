@@ -284,9 +284,9 @@ function mmEditOnclick(array $member): string
                                     </div>
                                     <div class="flex gap-2">
                                         <a href="member_profile.php?id=<?= $member['member_id'] ?>" class="flex-1 bg-white/5 hover:bg-white/10 text-center py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-eye mr-1"></i> View</a>
-                                        <button onclick="<?= mmEditOnclick($member) ?>"
+                                        <button type="button" onclick="<?= htmlspecialchars(mmEditOnclick($member), ENT_QUOTES, 'UTF-8') ?>"
                                                 class="flex-1 bg-white/5 hover:bg-white/10 text-center py-2 rounded-lg text-xs font-bold transition <?= $canModifyMembers ? 'text-blue-400 hover:text-white cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?>><i class="fa-solid fa-edit mr-1"></i> Edit</button>
-                                        <button onclick="openVoidModal('Member', <?= (int)$member['member_id'] ?>, <?= mmJs((string)($member['full_name'] ?? '')) ?>)" class="flex-1 text-center py-2 rounded-lg text-xs font-bold transition <?= canAccess('members', 'delete') ? 'bg-white/5 hover:bg-orange-500/20 cursor-pointer' : 'bg-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban mr-1"></i> Void</button>
+                                        <button type="button" onclick="openDeleteMemberModal(<?= (int)$member['member_id'] ?>, <?= htmlspecialchars(mmJs((string)($member['full_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>)" class="flex-1 text-center py-2 rounded-lg text-xs font-bold transition <?= canAccess('members', 'delete') ? 'bg-white/5 hover:bg-red-500/20 text-red-400 cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-trash mr-1"></i> Delete</button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -327,9 +327,9 @@ function mmEditOnclick(array $member): string
                                         <td class="p-4 lg:p-6"><span class="px-3 py-1 rounded-full text-xs <?= $member['status'] === 'Active' ? 'text-green-400 bg-green-400/10' : ($member['status'] === 'On Leave' ? 'text-orange-400 bg-orange-400/10' : 'text-red-400 bg-red-400/10') ?>"><?= htmlspecialchars($member['status']) ?></span></td>
                                         <td class="p-4 lg:p-6 text-center space-x-3">
                                             <a href="member_profile.php?id=<?= $member['member_id'] ?>" class="text-gray-500 hover:text-green-500 transition-colors"><i class="fa-solid fa-eye"></i></a>
-                                            <button onclick="<?= mmEditOnclick($member) ?>"
-                                                class="transition <?= $canModifyMembers ? 'text-blue-400 hover:text-white cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?>><i class="fas fa-edit"></i></button>
-                                            <button onclick="openVoidModal('Member', <?= (int)$member['member_id'] ?>, <?= mmJs((string)($member['full_name'] ?? '')) ?>)" class="<?= canAccess('members', 'delete') ? 'text-gray-600 hover:text-orange-500 transition cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban"></i></button>
+                                            <button type="button" onclick="<?= htmlspecialchars(mmEditOnclick($member), ENT_QUOTES, 'UTF-8') ?>"
+                                                class="transition <?= $canModifyMembers ? 'text-blue-400 hover:text-white cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?> title="Edit member"><i class="fas fa-edit"></i></button>
+                                            <button type="button" onclick="openDeleteMemberModal(<?= (int)$member['member_id'] ?>, <?= htmlspecialchars(mmJs((string)($member['full_name'] ?? '')), ENT_QUOTES, 'UTF-8') ?>)" class="<?= canAccess('members', 'delete') ? 'text-gray-600 hover:text-red-500 transition cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?> title="Delete member and login"><i class="fas fa-trash"></i></button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -452,8 +452,70 @@ function mmEditOnclick(array $member): string
         </main>
     </div>
 
+    <div id="deleteMemberModal" class="fixed inset-0 bg-black/90 backdrop-blur-md hidden z-[110] flex items-center justify-center p-4">
+        <div class="card-bg w-full max-w-sm rounded-3xl border border-red-500/30 p-8 text-center shadow-2xl">
+            <div class="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-trash text-3xl"></i>
+            </div>
+            <h2 class="text-xl font-bold uppercase italic tracking-wider mb-2 text-white">Delete Member?</h2>
+            <p class="text-gray-400 text-sm mb-6 leading-relaxed">
+                Permanently remove <span id="deleteMemberName" class="text-white font-bold">this member</span>,
+                their profile, and their login. They will not be able to sign in again.
+            </p>
+            <div id="deleteMemberError" class="text-red-400 text-xs hidden mb-4"></div>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeDeleteMemberModal()" class="flex-1 py-4 rounded-2xl bg-gray-800 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-white transition">Cancel</button>
+                <button type="button" id="deleteMemberConfirmBtn" onclick="confirmDeleteMember()" class="flex-1 py-4 rounded-2xl bg-red-600 text-black font-black text-[10px] uppercase tracking-[0.2em] hover:bg-red-500 transition">Delete Forever</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     window.arnisMemberFieldPermissions = <?= json_encode($memberFieldPermissions, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    let pendingDeleteMemberId = 0;
+
+    function openDeleteMemberModal(id, name) {
+        pendingDeleteMemberId = parseInt(id, 10) || 0;
+        const label = document.getElementById('deleteMemberName');
+        const errorBox = document.getElementById('deleteMemberError');
+        if (label) label.textContent = String(name || 'this member');
+        if (errorBox) { errorBox.textContent = ''; errorBox.classList.add('hidden'); }
+        document.getElementById('deleteMemberModal').classList.remove('hidden');
+    }
+
+    function closeDeleteMemberModal() {
+        document.getElementById('deleteMemberModal').classList.add('hidden');
+        pendingDeleteMemberId = 0;
+    }
+
+    async function confirmDeleteMember() {
+        const errorBox = document.getElementById('deleteMemberError');
+        const btn = document.getElementById('deleteMemberConfirmBtn');
+        if (!pendingDeleteMemberId) return;
+        btn.disabled = true;
+        btn.textContent = 'Deleting...';
+        try {
+            const body = new URLSearchParams({
+                member_id: String(pendingDeleteMemberId),
+                csrf_token: <?= json_encode(arnisCsrfToken(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+            });
+            const response = await fetch('../actions/process_delete_member.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                body: body.toString()
+            });
+            const result = await response.json();
+            if (!result || !result.success) {
+                throw new Error((result && (result.message || result.error)) || 'Failed to delete member.');
+            }
+            window.location.reload();
+        } catch (err) {
+            errorBox.textContent = (err && err.message) ? err.message : 'Failed to delete member.';
+            errorBox.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Delete Forever';
+        }
+    }
     </script>
 
     <?php include_once "modals/void_confirmation.php"; ?>
