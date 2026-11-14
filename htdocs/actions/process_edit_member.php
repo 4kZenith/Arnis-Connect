@@ -167,7 +167,10 @@ try {
     $memberType = Members::normalizePosition($memberTypeRaw);
     $paymentNotes = isset($_POST['payment_notes']) ? trim((string)$_POST['payment_notes']) : $currentPaymentNotes;
 
-    if (!in_array($rank, $validRanks, true)) {
+    // An unchanged rank that is not on the belt list is left alone, so one bad
+    // stored value cannot block every other edit. A new choice must be valid.
+    $rankIsValid = in_array($rank, $validRanks, true);
+    if (!$rankIsValid && $rank !== $currentRank) {
         echo json_encode(['success' => false, 'message' => 'Invalid rank selected.']);
         exit;
     }
@@ -175,7 +178,7 @@ try {
         echo json_encode(['success' => false, 'message' => 'Invalid status selected.']);
         exit;
     }
-    if (!in_array($memberTypeRaw, ['Head Coach', 'Coach', 'Player'], true)) {
+    if (!in_array($memberType, ['Head Coach', 'Coach', 'Player'], true)) {
         echo json_encode(['success' => false, 'message' => 'Invalid member position selected.']);
         exit;
     }
@@ -200,12 +203,12 @@ try {
     }
     if (!$canManagePrivileged && $memberType !== $currentType) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Only the SuperAdmin can change a member\'s position.']);
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to change a member\'s position.']);
         exit;
     }
     if (!$canManagePrivileged && $paymentNotes !== $currentPaymentNotes) {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Only the SuperAdmin can change payment notes.']);
+        echo json_encode(['success' => false, 'message' => 'You do not have permission to change payment notes.']);
         exit;
     }
     $currentPlayerCategory = (string)($existing['player_category'] ?? 'Public');
@@ -240,7 +243,7 @@ try {
         'email' => $email !== '' ? $email : null,
         'contact_number' => $contactNumber !== '' ? $contactNumber : null,
         'address' => $address !== '' ? $address : null,
-        'rank' => $canManagePrivileged ? $rank : $currentRank,
+        'rank' => $rankIsValid ? ($canManagePrivileged ? $rank : $currentRank) : $currentRank,
         'status' => $canManageStatus ? $status : $currentStatus,
         'height' => $height,
         'weight' => $weight,
@@ -253,6 +256,9 @@ try {
         'payment_notes' => $paymentNotes !== '' ? $paymentNotes : null,
         'profile_img' => $profileImg,
     ];
+    if (!$rankIsValid) {
+        unset($data['rank']);
+    }
 
     $result = $membersModel->update($memberId, $data, (int)$_SESSION['user_id']);
 
@@ -262,11 +268,20 @@ try {
          * admin reaches this point with a position change. */
         if ($canManagePrivileged) {
             $syncRole = Members::roleForPosition($memberType);
+            // Named placeholders cannot be repeated under native prepares.
+            // SuperAdmin and Officer logins are never relabeled from a member edit.
             $syncStmt = $db->prepare(
-                'UPDATE users SET role = :role, session_version = session_version + 1
-                 WHERE member_id = :mid AND role <> :role'
+                "UPDATE users
+                 SET role = :new_role, session_version = session_version + 1
+                 WHERE member_id = :mid
+                   AND role <> :kept_role
+                   AND role IN ('Head Coach', 'Coach/Trainer', 'Member')"
             );
-            $syncStmt->execute([':role' => $syncRole, ':mid' => $memberId]);
+            $syncStmt->execute([
+                ':new_role' => $syncRole,
+                ':kept_role' => $syncRole,
+                ':mid' => $memberId,
+            ]);
         }
 
         /* Belt progression: an admin correction is journaled with who did it. */

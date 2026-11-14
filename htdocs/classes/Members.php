@@ -550,9 +550,15 @@ class Members
             if ($this->conn->inTransaction()) {
                 $this->conn->rollBack();
             }
+            error_log('Members::update failed: ' . $e->getMessage());
+            $message = 'The member record could not be saved.';
+            $sqlState = $e instanceof PDOException ? (int)($e->errorInfo[1] ?? 0) : 0;
+            if ($sqlState === 1265 || $sqlState === 1366) {
+                $message = 'One of the selected values is not allowed. Check the rank, role, status, or category.';
+            }
             return [
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $message,
             ];
         }
     }

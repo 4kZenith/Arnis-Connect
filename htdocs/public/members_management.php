@@ -95,6 +95,40 @@ function buildQuery(array $filters, int $page): string {
     $filters['page'] = $page;
     return http_build_query($filters);
 }
+
+/** JSON argument safe to drop inside an HTML onclick attribute. */
+function mmJs(mixed $value): string
+{
+    $json = json_encode(
+        $value,
+        JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE
+    );
+    return $json === false ? 'null' : $json;
+}
+
+function mmEditOnclick(array $member): string
+{
+    return 'openEditMemberModal(' . mmJs([
+        'id' => (int)($member['member_id'] ?? 0),
+        'name' => (string)($member['full_name'] ?? ''),
+        'dob' => (string)($member['dob'] ?? ''),
+        'email' => (string)($member['email'] ?? ''),
+        'rank' => (string)($member['rank'] ?? 'None'),
+        'address' => (string)($member['address'] ?? ''),
+        'contact' => (string)($member['contact_number'] ?? ''),
+        'height' => (string)($member['height'] ?? ''),
+        'weight' => (string)($member['weight'] ?? ''),
+        'member_type' => (string)($member['member_type'] ?? 'Player'),
+        'player_category' => (string)($member['player_category'] ?? 'Public'),
+        'training_preference' => (string)($member['training_preference'] ?? 'Group'),
+        'affiliated_school' => (string)($member['affiliated_school'] ?? ''),
+        'guardian_name' => (string)($member['guardian_name'] ?? ''),
+        'guardian_contact' => (string)($member['guardian_contact'] ?? ''),
+        'payment_notes' => (string)($member['payment_notes'] ?? ''),
+        'status' => (string)($member['status'] ?? 'Active'),
+        'current_profile_img' => (string)($member['profile_img'] ?? ''),
+    ]) . ')';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="text-[13px]">
@@ -250,9 +284,9 @@ function buildQuery(array $filters, int $page): string {
                                     </div>
                                     <div class="flex gap-2">
                                         <a href="member_profile.php?id=<?= $member['member_id'] ?>" class="flex-1 bg-white/5 hover:bg-white/10 text-center py-2 rounded-lg text-xs font-bold transition"><i class="fa-solid fa-eye mr-1"></i> View</a>
-                                        <button onclick="openEditMemberModal({id: <?= $member['member_id'] ?>, name: '<?= htmlspecialchars($member['full_name'], ENT_QUOTES) ?>', dob: '<?= htmlspecialchars($member['dob'] ?? '', ENT_QUOTES) ?>', email: '<?= htmlspecialchars($member['email'] ?? '', ENT_QUOTES) ?>', rank: '<?= htmlspecialchars($member['rank'] ?? 'None', ENT_QUOTES) ?>', address: '<?= htmlspecialchars($member['address'] ?? '', ENT_QUOTES) ?>', contact: '<?= htmlspecialchars($member['contact_number'] ?? '', ENT_QUOTES) ?>', height: '<?= htmlspecialchars($member['height'] ?? '', ENT_QUOTES) ?>', weight: '<?= htmlspecialchars($member['weight'] ?? '', ENT_QUOTES) ?>', member_type: '<?= htmlspecialchars($member['member_type'] ?? 'Player', ENT_QUOTES) ?>', player_category: '<?= htmlspecialchars($member['player_category'] ?? 'Public', ENT_QUOTES) ?>', training_preference: '<?= htmlspecialchars($member['training_preference'] ?? 'Group', ENT_QUOTES) ?>', affiliated_school: '<?= htmlspecialchars($member['affiliated_school'] ?? '', ENT_QUOTES) ?>', guardian_name: '<?= htmlspecialchars($member['guardian_name'] ?? '', ENT_QUOTES) ?>', guardian_contact: '<?= htmlspecialchars($member['guardian_contact'] ?? '', ENT_QUOTES) ?>', payment_notes: '<?= htmlspecialchars($member['payment_notes'] ?? '', ENT_QUOTES) ?>', status: '<?= htmlspecialchars($member['status'] ?? 'Active', ENT_QUOTES) ?>', current_profile_img: '<?= htmlspecialchars($member['profile_img'] ?? '', ENT_QUOTES) ?>'})"
+                                        <button onclick="<?= mmEditOnclick($member) ?>"
                                                 class="flex-1 bg-white/5 hover:bg-white/10 text-center py-2 rounded-lg text-xs font-bold transition <?= $canModifyMembers ? 'text-blue-400 hover:text-white cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?>><i class="fa-solid fa-edit mr-1"></i> Edit</button>
-                                        <button onclick="openVoidModal('Member', <?= $member['member_id'] ?>, '<?= htmlspecialchars($member['full_name'], ENT_QUOTES) ?>')" class="flex-1 text-center py-2 rounded-lg text-xs font-bold transition <?= canAccess('members', 'delete') ? 'bg-white/5 hover:bg-orange-500/20 cursor-pointer' : 'bg-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban mr-1"></i> Void</button>
+                                        <button onclick="openVoidModal('Member', <?= (int)$member['member_id'] ?>, <?= mmJs((string)($member['full_name'] ?? '')) ?>)" class="flex-1 text-center py-2 rounded-lg text-xs font-bold transition <?= canAccess('members', 'delete') ? 'bg-white/5 hover:bg-orange-500/20 cursor-pointer' : 'bg-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban mr-1"></i> Void</button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -293,9 +327,9 @@ function buildQuery(array $filters, int $page): string {
                                         <td class="p-4 lg:p-6"><span class="px-3 py-1 rounded-full text-xs <?= $member['status'] === 'Active' ? 'text-green-400 bg-green-400/10' : ($member['status'] === 'On Leave' ? 'text-orange-400 bg-orange-400/10' : 'text-red-400 bg-red-400/10') ?>"><?= htmlspecialchars($member['status']) ?></span></td>
                                         <td class="p-4 lg:p-6 text-center space-x-3">
                                             <a href="member_profile.php?id=<?= $member['member_id'] ?>" class="text-gray-500 hover:text-green-500 transition-colors"><i class="fa-solid fa-eye"></i></a>
-                                            <button onclick="openEditMemberModal({id: <?= $member['member_id'] ?>, name: '<?= htmlspecialchars($member['full_name'], ENT_QUOTES) ?>', dob: '<?= htmlspecialchars($member['dob'] ?? '', ENT_QUOTES) ?>', email: '<?= htmlspecialchars($member['email'] ?? '', ENT_QUOTES) ?>', rank: '<?= htmlspecialchars($member['rank'] ?? 'None', ENT_QUOTES) ?>', address: '<?= htmlspecialchars($member['address'] ?? '', ENT_QUOTES) ?>', contact: '<?= htmlspecialchars($member['contact_number'] ?? '', ENT_QUOTES) ?>', height: '<?= htmlspecialchars($member['height'] ?? '', ENT_QUOTES) ?>', weight: '<?= htmlspecialchars($member['weight'] ?? '', ENT_QUOTES) ?>', member_type: '<?= htmlspecialchars($member['member_type'] ?? 'Player', ENT_QUOTES) ?>', player_category: '<?= htmlspecialchars($member['player_category'] ?? 'Public', ENT_QUOTES) ?>', training_preference: '<?= htmlspecialchars($member['training_preference'] ?? 'Group', ENT_QUOTES) ?>', affiliated_school: '<?= htmlspecialchars($member['affiliated_school'] ?? '', ENT_QUOTES) ?>', guardian_name: '<?= htmlspecialchars($member['guardian_name'] ?? '', ENT_QUOTES) ?>', guardian_contact: '<?= htmlspecialchars($member['guardian_contact'] ?? '', ENT_QUOTES) ?>', payment_notes: '<?= htmlspecialchars($member['payment_notes'] ?? '', ENT_QUOTES) ?>', status: '<?= htmlspecialchars($member['status'] ?? 'Active', ENT_QUOTES) ?>', current_profile_img: '<?= htmlspecialchars($member['profile_img'] ?? '', ENT_QUOTES) ?>'})"
+                                            <button onclick="<?= mmEditOnclick($member) ?>"
                                                 class="transition <?= $canModifyMembers ? 'text-blue-400 hover:text-white cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !$canModifyMembers ? 'disabled' : '' ?>><i class="fas fa-edit"></i></button>
-                                            <button onclick="openVoidModal('Member', <?= $member['member_id'] ?>, '<?= htmlspecialchars($member['full_name'], ENT_QUOTES) ?>')" class="<?= canAccess('members', 'delete') ? 'text-gray-600 hover:text-orange-500 transition cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban"></i></button>
+                                            <button onclick="openVoidModal('Member', <?= (int)$member['member_id'] ?>, <?= mmJs((string)($member['full_name'] ?? '')) ?>)" class="<?= canAccess('members', 'delete') ? 'text-gray-600 hover:text-orange-500 transition cursor-pointer' : 'text-gray-700 opacity-50 cursor-not-allowed' ?>" <?= !canAccess('members', 'delete') ? 'disabled' : '' ?>><i class="fas fa-ban"></i></button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
