@@ -31,7 +31,7 @@ if ($readScope === false) {
     die('Access Denied: You do not have permission to view trainings.');
 }
 
-/* Flash messages written by process_add_training.php / update_training.php. */
+/* Flash messages written by process_add_training.php / process_edit_training.php. */
 $flashSuccess = $_SESSION['success'] ?? null;
 $flashError = $_SESSION['error'] ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
