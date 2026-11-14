@@ -130,6 +130,15 @@ $csrfToken = arnisCsrfToken();
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">From Name</label>
                             <input type="text" name="from_name" maxlength="100" value="<?= stE((string)$settings['from_name']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
                         </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">SMTP Login (Brevo)</label>
+                            <input type="text" name="smtp_user" maxlength="150" autocomplete="off" value="<?= stE((string)$settings['smtp_user']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50" placeholder="xxxxxxx@smtp-brevo.com">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">SMTP Key</label>
+                            <input type="password" name="smtp_pass" maxlength="255" autocomplete="new-password" value="" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50" placeholder="<?= trim((string)$settings['smtp_pass']) !== '' ? 'Saved - leave blank to keep' : 'Paste your Brevo SMTP key' ?>">
+                            <p class="text-[10px] text-gray-500 mt-1">Required for verification, password reset and notification emails.</p>
+                        </div>
                         <label class="flex items-start gap-3 md:col-span-2 text-xs text-gray-300">
                             <input type="checkbox" name="email_notifications" value="1" <?= !empty($settings['email_notifications']) && $settings['email_notifications'] !== '0' ? 'checked' : '' ?> class="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500">
                             <span>Send event, training, and announcement emails. Requires working PHP mail on the host.</span>

@@ -41,6 +41,8 @@ try {
     $fromEmail = trim((string)($_POST['from_email'] ?? ''));
     $fromName = trim((string)($_POST['from_name'] ?? ''));
     $privacyContact = trim((string)($_POST['privacy_contact'] ?? ''));
+    $smtpUser = trim((string)($_POST['smtp_user'] ?? ''));
+    $smtpPass = trim((string)($_POST['smtp_pass'] ?? ''));
     $faceThresholdRaw = trim((string)($_POST['face_match_threshold'] ?? '0.60'));
     $geofenceRaw = trim((string)($_POST['default_geofence_m'] ?? '100'));
     $openBeforeRaw = trim((string)($_POST['checkin_open_minutes'] ?? '30'));
@@ -88,7 +90,11 @@ try {
         'late_grace_minutes' => (string)(int)$graceRaw,
         'allow_registration' => isset($_POST['allow_registration']) ? '1' : '0',
         'email_notifications' => isset($_POST['email_notifications']) ? '1' : '0',
+        'smtp_user' => mb_substr($smtpUser, 0, 150),
     ];
+    if ($smtpPass !== '') {
+        $values['smtp_pass'] = mb_substr($smtpPass, 0, 255);
+    }
 
     $changed = [];
     $failed = [];
