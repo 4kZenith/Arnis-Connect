@@ -23,6 +23,8 @@ class Settings
         'email_notifications' => '1',
         'face_match_threshold' => '0.60',
         'default_geofence_m' => '100',
+        'checkin_open_minutes' => '30',
+        'late_grace_minutes' => '15',
         'privacy_contact' => '',
         'smtp_host' => 'smtp-relay.brevo.com',
         'smtp_port' => '587',

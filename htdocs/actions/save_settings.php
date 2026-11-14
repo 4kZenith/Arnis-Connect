@@ -43,6 +43,8 @@ try {
     $privacyContact = trim((string)($_POST['privacy_contact'] ?? ''));
     $faceThresholdRaw = trim((string)($_POST['face_match_threshold'] ?? '0.60'));
     $geofenceRaw = trim((string)($_POST['default_geofence_m'] ?? '100'));
+    $openBeforeRaw = trim((string)($_POST['checkin_open_minutes'] ?? '30'));
+    $graceRaw = trim((string)($_POST['late_grace_minutes'] ?? '15'));
 
     if ($organizationName === '' || mb_strlen($organizationName) > 100) {
         settingsRedirect('error', 'Organization name is required and must be 100 characters or fewer.');
@@ -67,6 +69,12 @@ try {
     if ($geofence < 5 || $geofence > 5000) {
         settingsRedirect('error', 'Default geofence must be between 5 and 5,000 metres.');
     }
+    if (!ctype_digit($openBeforeRaw) || (int)$openBeforeRaw > 240) {
+        settingsRedirect('error', 'Check-in opening time must be 0 to 240 minutes before the start.');
+    }
+    if (!ctype_digit($graceRaw) || (int)$graceRaw > 180) {
+        settingsRedirect('error', 'Late grace period must be 0 to 180 minutes.');
+    }
 
     $values = [
         'organization_name' => mb_substr($organizationName, 0, 100),
@@ -76,6 +84,8 @@ try {
         'privacy_contact' => mb_substr($privacyContact, 0, 150),
         'face_match_threshold' => number_format($faceThreshold, 2, '.', ''),
         'default_geofence_m' => (string)$geofence,
+        'checkin_open_minutes' => (string)(int)$openBeforeRaw,
+        'late_grace_minutes' => (string)(int)$graceRaw,
         'allow_registration' => isset($_POST['allow_registration']) ? '1' : '0',
         'email_notifications' => isset($_POST['email_notifications']) ? '1' : '0',
     ];

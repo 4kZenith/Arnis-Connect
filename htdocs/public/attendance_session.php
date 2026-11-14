@@ -3,6 +3,8 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Trainings.php';
 require_once __DIR__ . '/../classes/Attendance.php';
+require_once __DIR__ . '/../classes/Settings.php';
+require_once __DIR__ . '/../includes/checkin_window.php';
 
 /*
  * config/permissions.php is the single RBAC source of truth. The inline matrix
@@ -129,6 +131,14 @@ try {
             }
             $attendanceList = $ownRows;
             $ownAttendance = $ownRows[0] ?? null;
+            $settingsModel = new Settings($db);
+            $checkinWindow = arnisCheckinWindow(
+                (string)($training['training_date'] ?? ''),
+                $training['start_time'] ?? null,
+                $training['end_time'] ?? null,
+                (int)$settingsModel->get('checkin_open_minutes', '30'),
+                (int)$settingsModel->get('late_grace_minutes', '15')
+            );
             $totalAttendance = count($ownRows);
             $totalPages = 1;
             $page = 1;
@@ -369,6 +379,21 @@ $sessionPageLink = static function (int $target) use ($trainingId): string {
                                 <i class="fas fa-check-circle text-xs"></i>
                                 Checked In: <?= asE((string)($ownAttendance['status'] ?? ''), 'Recorded') ?>
                             </span>
+                            <?php elseif ($viewerMemberId > 0 && $ownAttendance === null): ?>
+                            <span class="px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 whitespace-nowrap bg-gray-500/15 border border-gray-500/30 text-gray-300">
+                                <i class="fas fa-user-slash text-xs"></i>
+                                Not On Roster
+                            </span>
+                            <?php elseif ($viewerMemberId > 0 && ($checkinWindow['state'] ?? '') === 'closed'): ?>
+                            <span class="px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 whitespace-nowrap bg-red-500/15 border border-red-500/30 text-red-300">
+                                <i class="fas fa-circle-xmark text-xs"></i>
+                                Absent
+                            </span>
+                            <?php elseif ($viewerMemberId > 0 && ($checkinWindow['state'] ?? '') === 'upcoming'): ?>
+                            <span class="px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 whitespace-nowrap bg-blue-500/15 border border-blue-500/30 text-blue-300">
+                                <i class="fas fa-clock text-xs"></i>
+                                Check-in opens <?= asE(arnisFormatManila('M d, h:i A', (int)$checkinWindow['opens_at'])) ?>
+                            </span>
                             <?php elseif ($viewerMemberId > 0): ?>
                             <button type="button"
                                     onclick="openCheckinModal(<?= (int)$trainingId ?>, <?= (int)$viewerMemberId ?>)"
@@ -493,9 +518,18 @@ $sessionPageLink = static function (int $target) use ($trainingId): string {
                         <?php if ($ownAttendance !== null && (string)($ownAttendance['status'] ?? '') !== 'Absent'): ?>
                             <div class="text-2xl font-bold <?= $ownStatusClass ?>"><?= asE($ownStatus, 'Recorded') ?></div>
                             <div class="text-[10px] text-gray-500 mt-2">Your recorded status for this session</div>
+                        <?php elseif ($viewerMemberId > 0 && $ownAttendance === null): ?>
+                            <div class="text-lg font-bold text-gray-400">Not On Roster</div>
+                            <div class="text-[10px] text-gray-500 mt-2">Only members added to this session by a coach can check in.</div>
+                        <?php elseif ($viewerMemberId > 0 && ($checkinWindow['state'] ?? '') === 'closed'): ?>
+                            <div class="text-2xl font-bold text-red-400">Absent</div>
+                            <div class="text-[10px] text-gray-500 mt-2">Check-in closed without a check-in from you.</div>
+                        <?php elseif ($viewerMemberId > 0 && ($checkinWindow['state'] ?? '') === 'upcoming'): ?>
+                            <div class="text-lg font-bold text-gray-400">Not Open Yet</div>
+                            <div class="text-[10px] text-gray-500 mt-2">Check-in opens <?= asE(arnisFormatManila('M d, Y h:i A', (int)$checkinWindow['opens_at'])) ?> and closes <?= asE(arnisFormatManila('h:i A', (int)$checkinWindow['closes_at'])) ?>.</div>
                         <?php elseif ($viewerMemberId > 0): ?>
                             <div class="text-lg font-bold text-gray-400">Not Checked In Yet</div>
-                            <div class="text-[10px] text-gray-500 mt-2">Use "Check In: Face + GPS" to record your attendance.</div>
+                            <div class="text-[10px] text-gray-500 mt-2">Check-in is open until <?= asE(arnisFormatManila('h:i A', (int)$checkinWindow['closes_at'])) ?>. Use "Check In: Face + GPS".</div>
                         <?php else: ?>
                             <div class="text-lg font-bold text-amber-300">Account Not Linked</div>
                             <div class="text-[10px] text-gray-500 mt-2">Your login is not linked to a member record. Ask an administrator to link it under Users &#8594; Edit User.</div>

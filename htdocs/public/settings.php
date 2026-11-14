@@ -157,12 +157,22 @@ $csrfToken = arnisCsrfToken();
                         <div>
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Face Match Threshold</label>
                             <input type="number" name="face_match_threshold" min="0.10" max="1.00" step="0.01" value="<?= stE((string)$settings['face_match_threshold']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
-                            <p class="text-[10px] text-gray-500 mt-1">0.10 to 1.00. Higher is stricter.</p>
+                            <p class="text-[10px] text-gray-500 mt-1">0.10 to 1.00. Lower is stricter; 0.60 is recommended.</p>
                         </div>
                         <div>
                             <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Default Geofence (metres)</label>
                             <input type="number" name="default_geofence_m" min="5" max="5000" step="1" value="<?= stE((string)$settings['default_geofence_m']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
                             <p class="text-[10px] text-gray-500 mt-1">Used as the starting value when creating a training session.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Check-in Opens (minutes before start)</label>
+                            <input type="number" name="checkin_open_minutes" min="0" max="240" step="1" value="<?= stE((string)$settings['checkin_open_minutes']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Check-in closes when the session ends. Members who never check in stay Absent.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-2">Late After (minutes past start)</label>
+                            <input type="number" name="late_grace_minutes" min="0" max="180" step="1" value="<?= stE((string)$settings['late_grace_minutes']) ?>" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500/50">
+                            <p class="text-[10px] text-gray-500 mt-1">Checking in after this grace period is recorded as Late.</p>
                         </div>
                     </div>
                 </div>
