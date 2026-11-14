@@ -14,6 +14,7 @@ header("X-Content-Type-Options: nosniff");
 
 $errorMessage = '';
 $showResendLink = false;
+$resetDone = isset($_GET['reset']) && $_GET['reset'] === '1';
 if (isset($_GET['error']) && is_string($_GET['error'])) {
     switch ($_GET['error']) {
         case 'empty':
@@ -76,6 +77,11 @@ if (isset($_GET['error']) && is_string($_GET['error'])) {
 
     <main id="loginContent" class="w-full max-w-[400px] opacity-0 translate-y-8 transition-all duration-700 ease-out z-10">
 
+        <?php if ($resetDone): ?>
+            <div class="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold text-center">
+                <i class="fas fa-check-circle mr-2"></i> Your password was changed. Log in with your new password.
+            </div>
+        <?php endif; ?>
         <?php if ($errorMessage !== ''): ?>
             <div class="mb-4 p-3 rounded-xl bg-red-500/20 border border-red-400 text-red-300 text-[11px] font-bold text-center">
                 <i class="fas fa-exclamation-triangle mr-2"></i> <?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?>
@@ -120,6 +126,7 @@ if (isset($_GET['error']) && is_string($_GET['error'])) {
                 <div class="space-y-2">
                     <div class="flex justify-between items-center ml-1">
                         <label class="text-[10px] text-gray-500 uppercase font-black tracking-widest">Password</label>
+                        <a href="forgot_password.php" class="text-[10px] text-purple-400 hover:text-purple-300 uppercase font-black tracking-widest">Forgot password?</a>
                     </div>
 
                     <div class="relative">
