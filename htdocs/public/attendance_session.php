@@ -131,6 +131,10 @@ try {
             }
             $attendanceList = $ownRows;
             $ownAttendance = $ownRows[0] ?? null;
+            if ($ownAttendance === null && ($training['training_type'] ?? '') === 'Private') {
+                http_response_code(403);
+                exit('Access Denied: This is another member\'s private session.');
+            }
             $settingsModel = new Settings($db);
             $checkinWindow = arnisCheckinWindow(
                 (string)($training['training_date'] ?? ''),
