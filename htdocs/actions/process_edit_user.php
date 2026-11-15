@@ -217,6 +217,30 @@ try {
             $syncFields['email'] = $currentEmail !== '' ? $currentEmail : null;
         }
     }
+    /*
+     * The edit form leaves Linked Member ID blank when the login was never
+     * tied to a profile. The person is still one record when only one member
+     * uses that name, so connect them and keep a single email.
+     */
+    $storedLink = (int)($target['member_id'] ?? 0);
+    if ($linkedMemberId <= 0 && $storedLink <= 0) {
+        $roleForLink = isset($data['role']) ? (string)$data['role'] : (string)$target['role'];
+        $lookupName = trim((string)$target['full_name']);
+        $foundMember = $membersModel->findUnlinkedMemberId($targetId, $lookupName, $roleForLink);
+        if ($foundMember === null && isset($syncFields['full_name'])
+            && strcasecmp((string)$syncFields['full_name'], $lookupName) !== 0) {
+            $foundMember = $membersModel->findUnlinkedMemberId($targetId, (string)$syncFields['full_name'], $roleForLink);
+        }
+        if ($foundMember !== null) {
+            $data['member_id'] = $foundMember;
+            $linkedMemberId = $foundMember;
+            $syncFields['full_name'] = $syncFields['full_name'] ?? $lookupName;
+            if (!array_key_exists('email', $syncFields)) {
+                $currentEmail = trim((string)($target['email'] ?? ''));
+                $syncFields['email'] = $currentEmail !== '' ? $currentEmail : null;
+            }
+        }
+    }
     if ($linkedMemberId > 0 && array_key_exists('email', $syncFields)) {
         $membersModel->assertMemberEmailAvailable($linkedMemberId, $syncFields['email']);
     }

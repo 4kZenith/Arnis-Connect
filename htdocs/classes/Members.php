@@ -228,6 +228,134 @@ class Members
         }
     }
 
+    /**
+     * A login created without a member ID is still the same person when only
+     * one member profile uses that name. Returns that member id.
+     */
+    public function findUnlinkedMemberId(int $userId, string $fullName, string $role): ?int
+    {
+        $preferred = self::positionForRole($role);
+        $wanted = $this->normalizeIdentityName($fullName);
+        if ($userId <= 0 || $preferred === null || $wanted === '') {
+            return null;
+        }
+
+        $stmt = $this->conn->prepare(
+            'SELECT m.member_id, m.full_name, m.member_type
+             FROM members m
+             WHERE m.is_voided = 0
+               AND NOT EXISTS (
+                    SELECT 1 FROM users u
+                    WHERE u.member_id = m.member_id AND u.user_id <> :uid
+               )'
+        );
+        $stmt->execute([':uid' => $userId]);
+        $matches = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if ($this->normalizeIdentityName((string)$row['full_name']) === $wanted) {
+                $matches[] = $row;
+            }
+        }
+
+        return $this->pickSingleIdentity($matches, $preferred, 'member_type', 'member_id');
+    }
+
+    /**
+     * Point the only unlinked login with this name at the member profile so
+     * the shared email update has a row to write.
+     */
+    public function attachMatchingLogin(int $memberId, string $fullName, string $memberType): void
+    {
+        if ($memberId <= 0) {
+            return;
+        }
+
+        $existing = $this->conn->prepare('SELECT user_id FROM users WHERE member_id = :mid LIMIT 1');
+        $existing->execute([':mid' => $memberId]);
+        if ($existing->fetch()) {
+            return;
+        }
+
+        $wanted = $this->normalizeIdentityName($fullName);
+        if ($wanted === '') {
+            return;
+        }
+
+        $stmt = $this->conn->prepare(
+            "SELECT user_id, full_name, role, is_active
+             FROM users
+             WHERE member_id IS NULL
+               AND role IN ('Head Coach', 'Coach/Trainer', 'Member')"
+        );
+        $stmt->execute();
+        $matches = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if ($this->normalizeIdentityName((string)$row['full_name']) === $wanted) {
+                $matches[] = $row;
+            }
+        }
+        $active = array_values(array_filter(
+            $matches,
+            static fn(array $row): bool => (int)$row['is_active'] === 1
+        ));
+        if ($active !== []) {
+            $matches = $active;
+        }
+
+        $userId = $this->pickSingleIdentity(
+            $matches,
+            self::normalizePosition($memberType),
+            'role',
+            'user_id'
+        );
+        if ($userId === null) {
+            return;
+        }
+
+        $link = $this->conn->prepare(
+            'UPDATE users SET member_id = :mid WHERE user_id = :uid AND member_id IS NULL'
+        );
+        $link->execute([':mid' => $memberId, ':uid' => $userId]);
+    }
+
+    private function normalizeIdentityName(string $name): string
+    {
+        $name = preg_replace('/\s+/u', ' ', trim($name)) ?? '';
+        return mb_strtolower($name);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     */
+    private function pickSingleIdentity(array $rows, string $preferredPosition, string $positionKey, string $idKey): ?int
+    {
+        if ($rows === []) {
+            return null;
+        }
+
+        if (count($rows) > 1) {
+            $preferred = [];
+            foreach ($rows as $row) {
+                $position = $positionKey === 'member_type'
+                    ? self::normalizePosition((string)$row[$positionKey])
+                    : self::positionForRole((string)$row[$positionKey]);
+                if ($position === $preferredPosition) {
+                    $preferred[] = $row;
+                }
+            }
+            if ($preferred !== []) {
+                $rows = $preferred;
+            }
+        }
+
+        if (count($rows) > 1) {
+            throw new RuntimeException('That email was not copied because more than one record uses this name. Set Linked Member ID on the user account.');
+        }
+
+        $id = (int)$rows[0][$idKey];
+        return $id > 0 ? $id : null;
+    }
+
     public function getAllPaginated(
         array $filters = [],
         int $page = 1,
@@ -698,6 +826,15 @@ class Members
             }
             if (array_key_exists('email', $data)) {
                 $syncFields['email'] = $this->normalizeIdentityEmail($data['email']);
+            }
+            if ($syncFields !== []) {
+                $this->attachMatchingLogin(
+                    $memberId,
+                    (string)($currentMember['full_name'] ?? ''),
+                    (string)($currentMember['member_type'] ?? '')
+                );
+            }
+            if (array_key_exists('email', $syncFields)) {
                 $this->assertMemberEmailAvailable($memberId, $syncFields['email']);
                 $this->assertLoginEmailAvailable($memberId, $syncFields['email']);
             }
