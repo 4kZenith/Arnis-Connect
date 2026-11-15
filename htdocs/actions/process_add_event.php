@@ -113,64 +113,24 @@ try {
          */
         try {
             $mailer = new Mailer($db);
-            if ($mailer->notificationsEnabled()) {
-                $eventForMail = [
-                    'event_name' => $name,
-                    'event_type' => $type,
-                    'event_date' => $date,
-                    'location' => $location,
-                ];
-
-                if ($handlerId !== null) {
-                    $handlerStmt = $db->prepare(
-                        "SELECT full_name, email FROM members WHERE member_id = :id LIMIT 1"
-                    );
-                    $handlerStmt->execute([':id' => $handlerId]);
-                    $handler = $handlerStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-                    if (!empty($handler['email'])) {
-                        $mailer->sendEventNotification(
-                            (string)$handler['email'],
-                            (string)($handler['full_name'] ?? 'Coach'),
-                            $eventForMail
-                        );
-                    }
-                }
-
-                $memberSql = "SELECT member_id, full_name, email FROM members
-                              WHERE is_voided = 0 AND status = 'Active'
-                                AND email IS NOT NULL AND email <> ''";
-                $memberParams = [];
-                if ($targetPlayerCategory !== 'Mixed') {
-                    $memberSql .= " AND player_category = :category";
-                    $memberParams[':category'] = $targetPlayerCategory;
-                }
-                $memberStmt = $db->prepare($memberSql);
-                $memberStmt->execute($memberParams);
-                $recipients = [];
-                foreach ($memberStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                    if ($handlerId !== null && (int)($row['member_id'] ?? 0) === $handlerId) {
-                        continue;
-                    }
-                    if (!empty($row['email'])) {
-                        $recipients[] = (string)$row['email'];
-                    }
-                }
-
-                if ($recipients !== []) {
-                    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-                    $safeDate = htmlspecialchars($date, ENT_QUOTES, 'UTF-8');
-                    $safeLocation = htmlspecialchars($location !== '' ? $location : 'To be announced', ENT_QUOTES, 'UTF-8');
-                    $safeType = htmlspecialchars($type, ENT_QUOTES, 'UTF-8');
-                    $mailer->sendBulk(
-                        $recipients,
-                        'New event: ' . $name,
-                        '<p>A new <strong>' . $safeType . '</strong> event has been posted:</p>'
-                        . '<p style="font-size:18px;font-weight:bold;">' . $safeName . '</p>'
-                        . '<p>Date: ' . $safeDate . '<br>Location: ' . $safeLocation . '</p>'
-                        . '<p>Sign in to Arnis Connect to view details and participants.</p>'
-                    );
+            $eventForMail = [
+                'event_name' => $name,
+                'event_type' => $type,
+                'event_date' => $date,
+                'location' => $location,
+            ];
+            if ($handlerId !== null) {
+                $handler = $mailer->contactForMember($handlerId);
+                if ($handler !== null) {
+                    $mailer->sendEventNotification($handler['email'], $handler['name'], $eventForMail);
                 }
             }
+            $mailer->sendPlainBulk(
+                $mailer->activeMemberEmails($targetPlayerCategory, $handlerId !== null ? [$handlerId] : []),
+                'New event: ' . $name,
+                'A new ' . $type . ' event was posted: ' . $name . ' on ' . $date
+                . ' at ' . ($location !== '' ? $location : 'a location to be announced') . '.'
+            );
         } catch (Throwable $mailError) {
             error_log('process_add_event notification skipped: ' . $mailError->getMessage());
         }

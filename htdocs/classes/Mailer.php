@@ -225,4 +225,203 @@ class Mailer
             . '<p style="font-size:14px;color:#aaa;">Log in to Arnis Connect for details.</p>';
         return $this->send($to, $subject, $body);
     }
+
+    public function sendTrainingNotification(string $to, string $fullName, array $training): bool
+    {
+        $date = (string)($training['training_date'] ?? '');
+        $type = (string)($training['training_type'] ?? 'Training');
+        $start = (string)($training['start_time'] ?? '');
+        $end = (string)($training['end_time'] ?? '');
+        $time = trim($start . ($end !== '' ? ' - ' . $end : ''));
+        $location = trim((string)($training['location'] ?? ''));
+        if ($location === '') {
+            $location = 'To be announced';
+        }
+        $message = 'A ' . $type . ' training session is scheduled on ' . $date
+            . ($time !== '' ? ' (' . $time . ')' : '')
+            . ' at ' . $location . '.';
+        return $this->sendNotice($to, $fullName, 'Training session: ' . ($date !== '' ? $date : $type), $message);
+    }
+
+    public function sendEventNotification(string $to, string $fullName, array $event): bool
+    {
+        $name = (string)($event['event_name'] ?? 'Event');
+        $date = (string)($event['event_date'] ?? '');
+        $type = (string)($event['event_type'] ?? 'Event');
+        $location = trim((string)($event['location'] ?? ''));
+        if ($location === '') {
+            $location = 'To be announced';
+        }
+        $message = 'You are included in the ' . $type . ' event "' . $name . '"'
+            . ($date !== '' ? ' on ' . $date : '')
+            . ' at ' . $location . '.';
+        return $this->sendNotice($to, $fullName, 'Event: ' . $name, $message);
+    }
+
+    public function notifyMember(int $memberId, string $subject, string $message): bool
+    {
+        $contact = $this->contactForMember($memberId);
+        if ($contact === null) {
+            return false;
+        }
+        return $this->sendNotice($contact['email'], $contact['name'], $subject, $message);
+    }
+
+    /** @return array{name:string,email:string}|null */
+    public function contactForMember(int $memberId): ?array
+    {
+        $rows = $this->contactsForMembers([$memberId]);
+        return $rows[0] ?? null;
+    }
+
+    /**
+     * Member profile email, or the linked login email when the profile email is blank.
+     *
+     * @param int[] $memberIds
+     * @return list<array{name:string,email:string}>
+     */
+    public function contactsForMembers(array $memberIds): array
+    {
+        $ids = [];
+        foreach ($memberIds as $memberId) {
+            $id = (int)$memberId;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        $ids = array_values($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($ids as $i => $id) {
+            $key = ':mid' . $i;
+            $placeholders[] = $key;
+            $params[$key] = $id;
+        }
+        $stmt = $this->conn->prepare(
+            'SELECT m.full_name,
+                    COALESCE(NULLIF(TRIM(m.email), \'\'), (
+                        SELECT u.email FROM users u
+                        WHERE u.member_id = m.member_id AND u.is_active = 1
+                          AND u.email IS NOT NULL AND TRIM(u.email) <> \'\'
+                        ORDER BY u.user_id ASC
+                        LIMIT 1
+                    )) AS email
+             FROM members m
+             WHERE m.is_voided = 0 AND m.member_id IN (' . implode(', ', $placeholders) . ')'
+        );
+        $stmt->execute($params);
+        $contacts = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $email = trim((string)($row['email'] ?? ''));
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+            $name = trim((string)($row['full_name'] ?? ''));
+            $contacts[] = ['name' => $name !== '' ? $name : 'Member', 'email' => $email];
+        }
+        return $contacts;
+    }
+
+    /** @param int[] $excludeMemberIds @return list<string> */
+    public function activeMemberEmails(string $targetGroup, array $excludeMemberIds = []): array
+    {
+        $sql = "SELECT member_id FROM members
+                WHERE is_voided = 0 AND status = 'Active'";
+        $params = [];
+        if ($targetGroup === 'Public' || $targetGroup === 'Private') {
+            $sql .= " AND player_category IN (:target_group, 'Mixed')";
+            $params[':target_group'] = $targetGroup;
+        }
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
+        $ids = [];
+        $skip = [];
+        foreach ($excludeMemberIds as $memberId) {
+            $id = (int)$memberId;
+            if ($id > 0) {
+                $skip[$id] = true;
+            }
+        }
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $memberId) {
+            $id = (int)$memberId;
+            if (!isset($skip[$id])) {
+                $ids[] = $id;
+            }
+        }
+        $emails = [];
+        foreach ($this->contactsForMembers($ids) as $contact) {
+            $emails[] = $contact['email'];
+        }
+        return $emails;
+    }
+
+    /** @return list<string> */
+    public function trainingRosterEmails(int $trainingId): array
+    {
+        $stmt = $this->conn->prepare(
+            'SELECT member_id FROM attendance WHERE training_id = :id AND is_voided = 0'
+        );
+        $stmt->execute([':id' => $trainingId]);
+        $emails = [];
+        foreach ($this->contactsForMembers($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) as $contact) {
+            $emails[] = $contact['email'];
+        }
+        return $emails;
+    }
+
+    /** @return list<string> */
+    public function eventParticipantEmails(int $eventId): array
+    {
+        $stmt = $this->conn->prepare(
+            'SELECT member_id FROM event_participants WHERE event_id = :id AND is_voided = 0'
+        );
+        $stmt->execute([':id' => $eventId]);
+        $emails = [];
+        foreach ($this->contactsForMembers($stmt->fetchAll(PDO::FETCH_COLUMN) ?: []) as $contact) {
+            $emails[] = $contact['email'];
+        }
+        return $emails;
+    }
+
+    /** @param string[] $roles @return list<string> */
+    public function emailsForRoles(array $roles): array
+    {
+        $roles = array_values(array_filter($roles, static fn($role): bool => is_string($role) && $role !== ''));
+        if ($roles === []) {
+            return [];
+        }
+        $placeholders = [];
+        $params = [];
+        foreach ($roles as $i => $role) {
+            $key = ':role' . $i;
+            $placeholders[] = $key;
+            $params[$key] = $role;
+        }
+        $stmt = $this->conn->prepare(
+            'SELECT email FROM users
+             WHERE is_active = 1 AND email IS NOT NULL AND TRIM(email) <> \'\'
+               AND role IN (' . implode(', ', $placeholders) . ')'
+        );
+        $stmt->execute($params);
+        $emails = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $email) {
+            $email = trim((string)$email);
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $emails[] = $email;
+            }
+        }
+        return $emails;
+    }
+
+    /** @param string[] $emails */
+    public function sendPlainBulk(array $emails, string $subject, string $message): int
+    {
+        $html = '<p>' . nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8')) . '</p>'
+            . '<p style="font-size:14px;color:#aaa;">Log in to Arnis Connect for details.</p>';
+        return $this->sendBulk($emails, $subject, $html);
+    }
 }

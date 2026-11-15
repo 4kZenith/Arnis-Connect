@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
 require_once __DIR__ . '/../classes/FaceEnrollments.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 function faceRequestRedirect(string $type, string $message, int $memberId): void
 {
@@ -72,6 +73,15 @@ try {
             $memberId,
             'Approved a face change for ' . (string)$row['member_name'] . '. Attendance now uses the new face.'
         );
+        try {
+            (new Mailer($db))->notifyMember(
+                $memberId,
+                'Face change approved',
+                'Your new face photo was approved. Attendance now uses that face.'
+            );
+        } catch (Throwable $mailError) {
+            error_log('face approval email skipped: ' . $mailError->getMessage());
+        }
         faceRequestRedirect('success', 'Approved. Attendance for ' . (string)$row['member_name'] . ' now uses the new face.', $memberId);
     }
 
@@ -84,6 +94,17 @@ try {
             $memberId,
             'Declined a face change for ' . (string)$row['member_name'] . '. Attendance still uses the previous face.'
         );
+        $declineNote = trim((string)($_POST['review_note'] ?? ''));
+        try {
+            (new Mailer($db))->notifyMember(
+                $memberId,
+                'Face change declined',
+                'Your face change was declined' . ($declineNote !== '' ? '. Reason: ' . $declineNote : '')
+                . '. Attendance still uses your current face.'
+            );
+        } catch (Throwable $mailError) {
+            error_log('face decline email skipped: ' . $mailError->getMessage());
+        }
         faceRequestRedirect('success', 'Declined. Attendance for ' . (string)$row['member_name'] . ' still uses the previous face.', $memberId);
     }
 

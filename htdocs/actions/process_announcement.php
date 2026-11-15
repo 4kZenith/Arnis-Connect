@@ -126,6 +126,18 @@ try {
                 foreach ($recipientStmt->fetchAll(PDO::FETCH_ASSOC) as $recipient) {
                     $emails[] = (string)$recipient['email'];
                 }
+                if ($audience === 'All' || $audience === 'Members') {
+                    $emails = array_merge($emails, $mailer->activeMemberEmails('Mixed'));
+                } elseif ($audience === 'Coaches') {
+                    $coachIds = $db->query(
+                        "SELECT member_id FROM members
+                         WHERE is_voided = 0 AND status = 'Active'
+                           AND member_type IN ('Head Coach', 'Coach')"
+                    )->fetchAll(PDO::FETCH_COLUMN) ?: [];
+                    foreach ($mailer->contactsForMembers($coachIds) as $contact) {
+                        $emails[] = $contact['email'];
+                    }
+                }
 
                 if ($emails !== []) {
                     $safeBody = htmlspecialchars($body, ENT_QUOTES, 'UTF-8');

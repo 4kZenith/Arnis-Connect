@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Trainings.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -149,7 +150,7 @@ try {
      * otherwise a coach could take over another coach's session simply by
      * assigning it to themselves in the edit form. */
     $existingStmt = $db->prepare(
-        'SELECT training_id, coach_id, training_date, training_type
+        'SELECT training_id, coach_id, training_date, training_type, start_time, end_time, location, target_group
          FROM trainings
          WHERE training_id = :id AND is_voided = 0
          LIMIT 1'
@@ -200,6 +201,38 @@ try {
                 'training_date' => $data['training_date'],
             ]
         );
+        $clock = static function ($value): string {
+            $value = trim((string)$value);
+            return preg_match('/^\d{2}:\d{2}/', $value) === 1 ? substr($value, 0, 5) : $value;
+        };
+        $scheduleChanged = (string)$existing['training_date'] !== (string)$data['training_date']
+            || $clock($existing['start_time'] ?? '') !== $clock($data['start_time'] ?? '')
+            || $clock($existing['end_time'] ?? '') !== $clock($data['end_time'] ?? '')
+            || trim((string)($existing['location'] ?? '')) !== trim((string)($data['location'] ?? ''))
+            || (string)$existing['training_type'] !== (string)$data['training_type'];
+        if ($scheduleChanged) {
+            try {
+                $mailer = new Mailer($db);
+                $emails = $mailer->trainingRosterEmails($trainingId);
+                if ($emails === []) {
+                    $emails = $mailer->activeMemberEmails((string)($data['target_group'] ?? 'Mixed'), [(int)$data['coach_id']]);
+                }
+                $coach = $mailer->contactForMember((int)$data['coach_id']);
+                if ($coach !== null) {
+                    $emails[] = $coach['email'];
+                }
+                $where = trim((string)($data['location'] ?? ''));
+                $mailer->sendPlainBulk(
+                    $emails,
+                    'Training session updated',
+                    'The ' . $data['training_type'] . ' training on ' . $data['training_date']
+                    . ' was updated. Time: ' . $data['start_time'] . ' - ' . $data['end_time']
+                    . '. Location: ' . ($where !== '' ? $where : 'to be announced') . '.'
+                );
+            } catch (Throwable $mailError) {
+                error_log('process_edit_training notification skipped: ' . $mailError->getMessage());
+            }
+        }
         echo json_encode(['success' => true, 'message' => 'Training session updated successfully!']);
     } else {
         http_response_code(500);

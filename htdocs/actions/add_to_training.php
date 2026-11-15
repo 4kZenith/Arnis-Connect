@@ -6,6 +6,7 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Attendance.php';
 require_once __DIR__ . '/../classes/Members.php';
 require_once __DIR__ . '/../classes/Trainings.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $_SESSION['error'] = 'Invalid request.';
@@ -90,9 +91,41 @@ try {
         exit;
     }
 
+    $alreadyPlaceholders = [];
+    $alreadyParams = [':training_id' => $trainingId];
+    foreach (array_values($validMemberIds) as $index => $memberId) {
+        $key = ':already' . $index;
+        $alreadyPlaceholders[] = $key;
+        $alreadyParams[$key] = $memberId;
+    }
+    $alreadyStmt = $db->prepare(
+        'SELECT member_id FROM attendance
+         WHERE training_id = :training_id AND is_voided = 0
+           AND member_id IN (' . implode(', ', $alreadyPlaceholders) . ')'
+    );
+    $alreadyStmt->execute($alreadyParams);
+    $alreadyIds = array_map('intval', $alreadyStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    $freshIds = array_values(array_diff($validMemberIds, $alreadyIds));
+
     $added = $attendance->addMultipleMembers($trainingId, $validMemberIds, (int)$_SESSION['user_id']);
 
     if ($added) {
+        if ($freshIds !== []) {
+            try {
+                $mailer = new Mailer($db);
+                $when = (string)($training['training_date'] ?? '');
+                $where = trim((string)($training['location'] ?? ''));
+                $mailer->sendPlainBulk(
+                    array_column($mailer->contactsForMembers($freshIds), 'email'),
+                    'Added to a training session',
+                    'You were added to the ' . (string)($training['training_type'] ?? 'training')
+                    . ' session on ' . $when
+                    . ' at ' . ($where !== '' ? $where : 'a location to be announced') . '.'
+                );
+            } catch (Throwable $mailError) {
+                error_log('add_to_training notification skipped: ' . $mailError->getMessage());
+            }
+        }
         $_SESSION['success'] = count($validMemberIds) . ' member(s) successfully added to training.';
     } else {
         $_SESSION['error'] = 'Failed to add members. They may already be in this session.';

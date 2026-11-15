@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . $redirect);
@@ -78,12 +79,15 @@ if (!hasPermission($module, 'delete')) {
 $ownershipContext = [];
 $recordLabel = '';
 $recordDescription = '';
+$cancelEmails = [];
+$cancelSubject = '';
+$cancelBody = '';
 
 try {
     switch ($targetType) {
         case 'Training':
             $stmt = $db->prepare(
-                'SELECT training_id, coach_id, training_date, training_type
+                'SELECT training_id, coach_id, training_date, training_type, target_group, start_time, end_time, location
                  FROM trainings
                  WHERE training_id = :id AND is_voided = 0
                  LIMIT 1'
@@ -97,6 +101,26 @@ try {
             }
             $ownershipContext = ['coach_id' => (int)($row['coach_id'] ?? 0)];
             $recordLabel = 'training on ' . (string)($row['training_date'] ?? '');
+            try {
+                $mailer = new Mailer($db);
+                $cancelEmails = $mailer->trainingRosterEmails($targetId);
+                if ($cancelEmails === []) {
+                    $cancelEmails = $mailer->activeMemberEmails((string)($row['target_group'] ?? 'Mixed'));
+                }
+                $coachContact = $mailer->contactForMember((int)($row['coach_id'] ?? 0));
+                if ($coachContact !== null) {
+                    $cancelEmails[] = $coachContact['email'];
+                }
+                $where = trim((string)($row['location'] ?? ''));
+                $cancelSubject = 'Training cancelled';
+                $cancelBody = 'The ' . (string)($row['training_type'] ?? 'training') . ' session on '
+                    . (string)($row['training_date'] ?? '')
+                    . ' (' . (string)($row['start_time'] ?? '') . ' - ' . (string)($row['end_time'] ?? '') . ') at '
+                    . ($where !== '' ? $where : 'the scheduled location')
+                    . ' was cancelled. Reason: ' . $voidReason;
+            } catch (Throwable $mailError) {
+                error_log('process_void training notice skipped: ' . $mailError->getMessage());
+            }
             break;
 
         case 'Member':
@@ -119,7 +143,7 @@ try {
 
         case 'Event':
             $stmt = $db->prepare(
-                'SELECT event_id, event_name, created_by, handler_id
+                'SELECT event_id, event_name, event_date, location, target_player_category, created_by, handler_id
                  FROM events
                  WHERE event_id = :id AND is_voided = 0
                  LIMIT 1'
@@ -136,6 +160,28 @@ try {
                 'handler_id' => (int)($row['handler_id'] ?? 0),
             ];
             $recordLabel = (string)($row['event_name'] ?? ('event #' . $targetId));
+            try {
+                $mailer = new Mailer($db);
+                $cancelEmails = $mailer->eventParticipantEmails($targetId);
+                $handlerId = (int)($row['handler_id'] ?? 0);
+                if ($cancelEmails === []) {
+                    $cancelEmails = $mailer->activeMemberEmails((string)($row['target_player_category'] ?? 'Mixed'), $handlerId > 0 ? [$handlerId] : []);
+                }
+                if ($handlerId > 0) {
+                    $handlerContact = $mailer->contactForMember($handlerId);
+                    if ($handlerContact !== null) {
+                        $cancelEmails[] = $handlerContact['email'];
+                    }
+                }
+                $where = trim((string)($row['location'] ?? ''));
+                $cancelSubject = 'Event cancelled';
+                $cancelBody = 'The event "' . (string)($row['event_name'] ?? '') . '" on '
+                    . (string)($row['event_date'] ?? '')
+                    . ' at ' . ($where !== '' ? $where : 'the scheduled location')
+                    . ' was cancelled. Reason: ' . $voidReason;
+            } catch (Throwable $mailError) {
+                error_log('process_void event notice skipped: ' . $mailError->getMessage());
+            }
             break;
 
         case 'Fund':
@@ -286,6 +332,13 @@ try {
                 'target_type' => $targetType,
             ]
         );
+        if ($cancelEmails !== [] && $cancelSubject !== '') {
+            try {
+                (new Mailer($db))->sendPlainBulk($cancelEmails, $cancelSubject, $cancelBody);
+            } catch (Throwable $mailError) {
+                error_log('process_void notification skipped: ' . $mailError->getMessage());
+            }
+        }
         $_SESSION['success'] = $targetType . ' voided successfully.';
     } else {
         $_SESSION['error'] = 'Record not found or already voided.';

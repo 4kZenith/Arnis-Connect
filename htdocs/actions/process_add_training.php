@@ -174,56 +174,18 @@ try {
          */
         try {
             $mailer = new Mailer($db);
-            if ($mailer->notificationsEnabled()) {
-                $coachStmt = $db->prepare(
-                    "SELECT full_name, email FROM members WHERE member_id = :id LIMIT 1"
-                );
-                $coachStmt->execute([':id' => $data['coach_id']]);
-                $coach = $coachStmt->fetch(PDO::FETCH_ASSOC) ?: [];
-                if (!empty($coach['email'])) {
-                    $mailer->sendTrainingNotification(
-                        (string)$coach['email'],
-                        (string)($coach['full_name'] ?? 'Coach'),
-                        $data
-                    );
-                }
-
-                $memberSql = "SELECT member_id, email FROM members
-                              WHERE is_voided = 0 AND status = 'Active'
-                                AND email IS NOT NULL AND email <> ''
-                                AND member_id <> :coach_id";
-                $memberParams = [':coach_id' => $data['coach_id']];
-                if ($data['target_group'] !== 'Mixed') {
-                    $memberSql .= " AND player_category = :category";
-                    $memberParams[':category'] = $data['target_group'];
-                }
-                $memberStmt = $db->prepare($memberSql);
-                $memberStmt->execute($memberParams);
-                $recipients = [];
-                foreach ($memberStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                    if (!empty($row['email'])) {
-                        $recipients[] = (string)$row['email'];
-                    }
-                }
-
-                if ($recipients !== []) {
-                    $safeDate = htmlspecialchars((string)$data['training_date'], ENT_QUOTES, 'UTF-8');
-                    $safeLocation = htmlspecialchars((string)($data['location'] ?? 'To be announced'), ENT_QUOTES, 'UTF-8');
-                    $safeType = htmlspecialchars((string)$data['training_type'], ENT_QUOTES, 'UTF-8');
-                    $safeTime = htmlspecialchars(
-                        trim((string)$data['start_time'] . ' - ' . (string)$data['end_time']),
-                        ENT_QUOTES,
-                        'UTF-8'
-                    );
-                    $mailer->sendBulk(
-                        $recipients,
-                        'New training session: ' . $data['training_date'],
-                        '<p>A new <strong>' . $safeType . '</strong> training session has been scheduled.</p>'
-                        . '<p>Date: ' . $safeDate . '<br>Time: ' . $safeTime . '<br>Location: ' . $safeLocation . '</p>'
-                        . '<p>Sign in to Arnis Connect for the full session details.</p>'
-                    );
-                }
+            $coach = $mailer->contactForMember((int)$data['coach_id']);
+            if ($coach !== null) {
+                $mailer->sendTrainingNotification($coach['email'], $coach['name'], $data);
             }
+            $location = trim((string)($data['location'] ?? ''));
+            $mailer->sendPlainBulk(
+                $mailer->activeMemberEmails((string)$data['target_group'], [(int)$data['coach_id']]),
+                'New training session: ' . $data['training_date'],
+                'A new ' . $data['training_type'] . ' training session is scheduled on ' . $data['training_date']
+                . ' (' . trim((string)$data['start_time'] . ' - ' . (string)$data['end_time']) . ') at '
+                . ($location !== '' ? $location : 'a location to be announced') . '.'
+            );
         } catch (Throwable $mailError) {
             error_log('process_add_training notification skipped: ' . $mailError->getMessage());
         }
