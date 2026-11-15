@@ -149,6 +149,8 @@ try {
     if (!isset($db) || !($db instanceof PDO)) {
         $db = (new Database())->connect();
     }
+    require_once __DIR__ . '/../classes/FaceEnrollments.php';
+    FaceEnrollments::ensureSchema($db);
     $memberProfileModel = new MemberProfile($db);
 
     $profileData = $memberProfileModel->getProfileData($memberId, $achievementFilter, $eventMonth);
@@ -164,6 +166,15 @@ if ($profileData === null) {
 }
 
 $member = $profileData['member'];
+$pendingFaceRequest = null;
+try {
+    require_once __DIR__ . '/../classes/FaceEnrollments.php';
+    $pendingFaceRequest = (new FaceEnrollments($db))->pendingForMember($memberId);
+} catch (Throwable $e) {
+    error_log('member_profile face enrollment lookup failed: ' . $e->getMessage());
+    $pendingFaceRequest = null;
+}
+$canReviewFaces = function_exists('permissionValue') && permissionValue('members', 'write') === true;
 $age = $profileData['age'];
 $presentCount = (int)$profileData['attendance']['present'];
 $lateCount = (int)$profileData['attendance']['late'];
@@ -434,6 +445,54 @@ $csrfToken = arnisCsrfToken();
         <i class="fas <?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$rankPromoFlash['message'], ENT_QUOTES, 'UTF-8') ?>
     </div>
     <?php endif; ?>
+    <?php
+    $faceReenrollFlash = $_SESSION['face_reenroll_flash'] ?? null;
+    unset($_SESSION['face_reenroll_flash']);
+    if (is_array($faceReenrollFlash) && !empty($faceReenrollFlash['message'])):
+    ?>
+    <div class="<?= ($faceReenrollFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+        <i class="fas <?= ($faceReenrollFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$faceReenrollFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($canReviewFaces && is_array($pendingFaceRequest) && !$isOwnProfile): ?>
+    <section class="card-bg rounded-2xl p-4 sm:p-6 mb-6">
+        <h2 class="font-bold text-xs sm:text-sm tracking-widest uppercase mb-2">Face change waiting</h2>
+        <p class="text-[11px] text-gray-400 mb-4">Compare the face already used for attendance with the new photo. Approving replaces the face check-in uses. Declining leaves the current face in place.</p>
+        <div class="flex flex-wrap gap-4 mb-4">
+            <div>
+                <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Face on file</p>
+                <?php if (!empty($member['face_photo'])): ?>
+                <img src="../actions/view_face_photo.php?member_id=<?= (int)$memberId ?>" alt="Face currently used for attendance" class="w-36 h-36 rounded-2xl object-cover border border-white/10">
+                <?php else: ?>
+                <img src="<?= mpAvatar(isset($member['profile_img']) ? (string)$member['profile_img'] : null) ?>" alt="Profile photo" class="w-36 h-36 rounded-2xl object-cover border border-white/10">
+                <p class="text-[10px] text-gray-500 mt-1 max-w-[9rem]">No enrollment photo was saved yet. This is the profile picture.</p>
+                <?php endif; ?>
+            </div>
+            <div>
+                <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-2">New photo</p>
+                <img src="../actions/view_face_photo.php?request_id=<?= (int)$pendingFaceRequest['request_id'] ?>" alt="Requested face" class="w-36 h-36 rounded-2xl object-cover border border-white/10">
+            </div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+            <form method="POST" action="../actions/process_face_reenroll.php" onsubmit="return confirm('Approve this face? Attendance will use the new photo.');">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="op" value="approve">
+                <input type="hidden" name="return_to" value="profile">
+                <input type="hidden" name="request_id" value="<?= (int)$pendingFaceRequest['request_id'] ?>">
+                <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black uppercase tracking-widest">Approve new face</button>
+            </form>
+            <form method="POST" action="../actions/process_face_reenroll.php" class="flex flex-1 gap-2">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="op" value="decline">
+                <input type="hidden" name="return_to" value="profile">
+                <input type="hidden" name="request_id" value="<?= (int)$pendingFaceRequest['request_id'] ?>">
+                <input type="text" name="review_note" required maxlength="255" placeholder="Reason" class="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white">
+                <button type="submit" class="px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Decline</button>
+            </form>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <!-- RESPONSIVE: Profile Header - Horizontal alignment -->
 <div class="flex flex-col md:flex-row md:items-center gap-6 sm:gap-8 lg:gap-10 mb-6 sm:mb-8">
@@ -451,22 +510,34 @@ $csrfToken = arnisCsrfToken();
             <i class="fas fa-camera text-sm"></i>
         </button>
 
-        <!-- Face Enrollment Status Badge & Button -->
-        <div class="absolute bottom-2 left-2 flex flex-col gap-1">
+        <?php endif; ?>
+
+        <?php if ($isOwnProfile): ?>
+        <div class="absolute bottom-2 left-2 flex flex-col gap-1 max-w-[11rem]">
             <span id="faceEnrollBadge"
                   class="px-2 py-1 rounded-full text-[9px] font-bold uppercase whitespace-nowrap
                          <?= !empty($member['face_descriptor']) ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400' ?>">
                 <?= !empty($member['face_descriptor']) ? 'Face Enrolled' : 'Not Enrolled' ?>
             </span>
+            <?php if (is_array($pendingFaceRequest)): ?>
+            <span class="px-2 py-1 rounded-full text-[9px] font-bold uppercase whitespace-nowrap bg-yellow-500/20 text-yellow-300">Waiting for review</span>
+            <form method="POST" action="../actions/process_face_reenroll.php" onsubmit="return confirm('Cancel this face change request? Attendance keeps your current face.');">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="op" value="cancel">
+                <input type="hidden" name="request_id" value="<?= (int)$pendingFaceRequest['request_id'] ?>">
+                <button type="submit" class="bg-white/10 hover:bg-white/20 text-white rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider">Cancel request</button>
+            </form>
+            <?php else: ?>
             <button type="button" id="faceEnrollBtn" onclick="openFaceEnrollModal()"
+                    data-face-mode="<?= !empty($member['face_descriptor']) ? 'request' : 'enroll' ?>"
                     class="bg-[#bf46c7] hover:bg-purple-600 text-white rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition shadow-lg shadow-purple-900/30 flex items-center gap-1.5 cursor-pointer"
-                    title="<?= !empty($member['face_descriptor']) ? 'Re-enroll face' : 'Enroll face for smart attendance' ?>">
+                    title="<?= !empty($member['face_descriptor']) ? 'Ask an admin to replace your enrolled face' : 'Enroll your face once for attendance' ?>">
                 <i class="fas fa-user-secret text-xs"></i>
-                <?= !empty($member['face_descriptor']) ? 'Re-enroll Face' : 'Enroll Face' ?>
+                <?= !empty($member['face_descriptor']) ? 'Request face change' : 'Enroll Face' ?>
             </button>
+            <?php endif; ?>
         </div>
         <?php elseif (!empty($member['face_descriptor'])): ?>
-        <!-- Read-only badge for users without write permission -->
         <span class="absolute bottom-2 left-2 px-2 py-1 rounded-full text-[9px] font-bold uppercase whitespace-nowrap bg-green-500/20 text-green-400">
             Face Enrolled
         </span>
@@ -1238,10 +1309,12 @@ window.arnisMemberFieldPermissions = <?= json_encode($memberFieldPermissions, JS
                         <i class="fas fa-user-secret text-2xl text-purple-400"></i>
                     </div>
                     <p class="text-gray-300 text-sm mb-2" id="faceEnrollTitle">
-                        <?= !empty($member['face_descriptor']) ? 'Re-enroll your face' : 'Enroll your face for smart attendance' ?>
+                        <?= !empty($member['face_descriptor']) ? 'Request a new face' : 'Enroll your face once' ?>
                     </p>
                     <p class="text-gray-500 text-xs" id="faceEnrollSubtitle">
-                        Position your face in the frame. Ensure good lighting and look directly at the camera.
+                        <?= !empty($member['face_descriptor'])
+                            ? 'This photo goes to an admin. Attendance keeps using your current face until they approve it.'
+                            : 'This is the only face attendance will accept. A later change has to be approved by an admin.' ?>
                     </p>
                 </div>
 
@@ -1292,7 +1365,7 @@ window.arnisMemberFieldPermissions = <?= json_encode($memberFieldPermissions, JS
                     <button type="button" onclick="saveFaceDescriptor()"
                             id="saveFaceBtn"
                             class="flex-1 px-6 py-3 bg-[#bf46c7] rounded-3xl transition text-sm font-semibold shadow-lg shadow-purple-900/20">
-                        <i class="fas fa-save mr-2"></i>SAVE DESCRIPTOR
+                        <i class="fas fa-save mr-2"></i><span id="saveFaceLabel"><?= !empty($member['face_descriptor']) ? 'SEND REQUEST' : 'SAVE FACE' ?></span>
                     </button>
                 </div>
             </div>
@@ -1668,14 +1741,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
 /* ========================================================================
    FACE ENROLLMENT — client-side face-api.js (vladmandic fork v1.7.12)
-   Runs fully in-browser; no ML backend. Saves 128-dim Float32Array as JSON
-   to members.face_descriptor via actions/save_face_descriptor.php.
+   The first capture is saved for attendance. A later capture is a request
+   and does not replace the saved face until an admin approves the photo.
    ======================================================================== */
 
 // Face enrollment state
 let faceVideo = null;
 let faceCanvas = null;
 let faceDetection = null;
+let faceSnapshotDataUrl = '';
 let modelsLoaded = false;
 let stream = null;
 
@@ -1709,6 +1783,7 @@ function openFaceEnrollModal() {
 
     // Reset form state
     document.getElementById('faceDescriptorInput').value = '';
+    faceSnapshotDataUrl = '';
     document.getElementById('faceEnrollStatus').classList.add('hidden');
     document.getElementById('faceEnrollError').classList.add('hidden');
     document.getElementById('faceEnrollSuccess').classList.add('hidden');
@@ -1719,14 +1794,18 @@ function openFaceEnrollModal() {
     document.getElementById('cameraContainer').classList.remove('hidden');
     document.getElementById('faceOverlay').classList.remove('hidden');
 
-    // Update title based on existing descriptor
-    const hasDescriptor = !!(document.getElementById('faceEnrollBadge') &&
-        document.getElementById('faceEnrollBadge').textContent.includes('Enrolled'));
-    document.getElementById('faceEnrollTitle').textContent = hasDescriptor
-        ? 'Re-enroll your face'
-        : 'Enroll your face for smart attendance';
-    document.getElementById('faceEnrollSubtitle').textContent =
-        'Position your face in the frame. Ensure good lighting and look directly at the camera.';
+    const enrollBtn = document.getElementById('faceEnrollBtn');
+    const requesting = enrollBtn && enrollBtn.dataset.faceMode === 'request';
+    document.getElementById('faceEnrollTitle').textContent = requesting
+        ? 'Request a new face'
+        : 'Enroll your face once';
+    document.getElementById('faceEnrollSubtitle').textContent = requesting
+        ? 'This photo goes to an admin. Attendance keeps using your current face until they approve it.'
+        : 'This is the only face attendance will accept. A later change has to be approved by an admin.';
+    const saveLabel = document.getElementById('saveFaceLabel');
+    if (saveLabel) {
+        saveLabel.textContent = requesting ? 'SEND REQUEST' : 'SAVE FACE';
+    }
 
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1948,13 +2027,27 @@ function captureFaceDescriptor() {
     // Store in hidden input
     document.getElementById('faceDescriptorInput').value = JSON.stringify(descriptorArray);
 
+    if (!faceVideo || !faceVideo.videoWidth) {
+        errorEl.textContent = 'The camera frame is not ready. Please try again.';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    const snap = document.createElement('canvas');
+    snap.width = faceVideo.videoWidth;
+    snap.height = faceVideo.videoHeight;
+    snap.getContext('2d').drawImage(faceVideo, 0, 0, snap.width, snap.height);
+    faceSnapshotDataUrl = snap.toDataURL('image/jpeg', 0.85);
+
     // Update UI
     captureBtn.classList.add('hidden');
     retakeBtn.classList.remove('hidden');
     saveActions.hidden = false;
     overlay.classList.remove('hidden');
 
-    successEl.textContent = 'Face captured successfully! Review and click SAVE DESCRIPTOR.';
+    const requesting = document.getElementById('faceEnrollBtn')?.dataset.faceMode === 'request';
+    successEl.textContent = requesting
+        ? 'Photo captured. Send it for an admin to compare with your current face.'
+        : 'Photo captured. Saving this enrolls it as the face attendance will use.';
     successEl.classList.remove('hidden');
 }
 
@@ -1968,6 +2061,7 @@ function retakeFaceEnrollment() {
 
     // Reset form
     document.getElementById('faceDescriptorInput').value = '';
+    faceSnapshotDataUrl = '';
     faceDetection = null;
 
     errorEl.classList.add('hidden');
@@ -1985,8 +2079,8 @@ async function saveFaceDescriptor() {
     const errorEl = document.getElementById('faceEnrollError');
     const successEl = document.getElementById('faceEnrollSuccess');
 
-    if (!descriptorJson) {
-        errorEl.textContent = 'No face descriptor to save. Please capture your face first.';
+    if (!descriptorJson || !faceSnapshotDataUrl) {
+        errorEl.textContent = 'Capture your face before saving.';
         errorEl.classList.remove('hidden');
         return;
     }
@@ -1998,53 +2092,43 @@ async function saveFaceDescriptor() {
     saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
 
     try {
-        const body = new URLSearchParams();
+        const photoResponse = await fetch(faceSnapshotDataUrl);
+        const photoBlob = await photoResponse.blob();
+        const body = new FormData();
         body.set('member_id', String(MEMBER_ID));
         body.set('face_descriptor', descriptorJson);
         body.set('csrf_token', CSRF_TOKEN);
+        body.set('face_photo', photoBlob, 'face.jpg');
 
         const response = await fetch('../actions/save_face_descriptor.php', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json',
             },
-            body: body.toString(),
+            body,
         });
 
         const data = await response.json().catch(() => ({ success: false, error: 'Unexpected server response.' }));
 
         if (data.success) {
-            // Update badge in profile header
-            const badge = document.getElementById('faceEnrollBadge');
-            if (badge) {
-                badge.textContent = 'Face Enrolled';
-                badge.className = 'px-2 py-1 rounded-full text-[9px] font-bold uppercase whitespace-nowrap bg-green-500/20 text-green-400';
-            }
-
-            // Update the header enroll button
-            const enrollBtn = document.getElementById('faceEnrollBtn');
-            if (enrollBtn) {
-                enrollBtn.title = 'Re-enroll face';
-                enrollBtn.innerHTML = '<i class="fas fa-user-secret text-xs"></i> Re-enroll Face';
-            }
-
             closeFaceEnrollModal();
-            showNotification('Face descriptor saved successfully!', 'success');
+            window.location.reload();
         } else {
             errorEl.textContent = data.error || 'Failed to save face descriptor.';
             errorEl.classList.remove('hidden');
             saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>SAVE DESCRIPTOR';
+            const requesting = document.getElementById('faceEnrollBtn')?.dataset.faceMode === 'request';
+            saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i><span id="saveFaceLabel">' + (requesting ? 'SEND REQUEST' : 'SAVE FACE') + '</span>';
         }
     } catch (error) {
         console.error('Save face descriptor error:', error);
         errorEl.textContent = 'Network error. Please try again.';
         errorEl.classList.remove('hidden');
         saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>SAVE DESCRIPTOR';
+        const requesting = document.getElementById('faceEnrollBtn')?.dataset.faceMode === 'request';
+        saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i><span id="saveFaceLabel">' + (requesting ? 'SEND REQUEST' : 'SAVE FACE') + '</span>';
     }
 }
 

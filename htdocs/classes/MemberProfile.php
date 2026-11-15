@@ -72,6 +72,7 @@ class MemberProfile
                 weight,
                 profile_img,
                 face_descriptor,
+                face_photo,
                 created_at,
                 status
             FROM members
