@@ -68,6 +68,166 @@ class Members
         };
     }
 
+    /**
+     * A login and its member profile are one person. full_name and email are
+     * the shared fields: saving either side writes them onto the other.
+     * Username, password, rank, and contact details stay on their own table.
+     * Role and member position stay in sync through roleForPosition().
+     *
+     * @param array{full_name?:string,email?:string|null} $fields
+     */
+    public function copyIdentityToLogin(int $memberId, array $fields): void
+    {
+        if ($memberId <= 0 || $fields === []) {
+            return;
+        }
+
+        $sets = [];
+        $params = [':mid' => $memberId];
+
+        if (isset($fields['full_name'])) {
+            $name = trim((string)$fields['full_name']);
+            if ($name !== '') {
+                $sets[] = 'full_name = :full_name';
+                $params[':full_name'] = $name;
+            }
+        }
+
+        if (array_key_exists('email', $fields)) {
+            $email = $this->normalizeIdentityEmail($fields['email']);
+            $this->assertLoginEmailAvailable($memberId, $email);
+            if ($email === null) {
+                $sets[] = 'email = NULL';
+            } else {
+                $sets[] = 'email = :email';
+                $params[':email'] = $email;
+            }
+        }
+
+        if ($sets === []) {
+            return;
+        }
+
+        $sql = 'UPDATE users SET ' . implode(', ', $sets) . ' WHERE member_id = :mid';
+        $stmt = $this->conn->prepare($sql);
+        $this->executeIdentityWrite($stmt, $params);
+    }
+
+    /**
+     * @param array{full_name?:string,email?:string|null} $fields
+     */
+    public function copyIdentityToMember(int $memberId, array $fields): void
+    {
+        if ($memberId <= 0 || $fields === []) {
+            return;
+        }
+
+        $sets = [];
+        $params = [':id' => $memberId];
+
+        if (isset($fields['full_name'])) {
+            $name = trim((string)$fields['full_name']);
+            if ($name !== '') {
+                $sets[] = 'full_name = :full_name';
+                $params[':full_name'] = $name;
+            }
+        }
+
+        if (array_key_exists('email', $fields)) {
+            $email = $this->normalizeIdentityEmail($fields['email']);
+            $this->assertMemberEmailAvailable($memberId, $email);
+            if ($email === null) {
+                $sets[] = 'email = NULL';
+            } else {
+                $sets[] = 'email = :email';
+                $params[':email'] = $email;
+            }
+        }
+
+        if ($sets === []) {
+            return;
+        }
+
+        $sets[] = 'updated_at = NOW()';
+        $sql = 'UPDATE members SET ' . implode(', ', $sets)
+            . ' WHERE member_id = :id AND is_voided = 0';
+        $stmt = $this->conn->prepare($sql);
+        $this->executeIdentityWrite($stmt, $params);
+    }
+
+    /**
+     * Reject an email another member already uses, unless this profile
+     * already has it (a pre-existing duplicate must not block unrelated saves).
+     */
+    public function assertMemberEmailAvailable(int $memberId, ?string $email): void
+    {
+        $email = $this->normalizeIdentityEmail($email);
+        if ($email === null) {
+            return;
+        }
+
+        if ($memberId > 0) {
+            $own = $this->conn->prepare('SELECT email FROM members WHERE member_id = :id LIMIT 1');
+            $own->execute([':id' => $memberId]);
+            $current = trim((string)($own->fetchColumn() ?: ''));
+            if ($current !== '' && strcasecmp($current, $email) === 0) {
+                return;
+            }
+        }
+
+        $sql = 'SELECT member_id FROM members WHERE email = :email AND is_voided = 0';
+        $params = [':email' => $email];
+        if ($memberId > 0) {
+            $sql .= ' AND member_id <> :id';
+            $params[':id'] = $memberId;
+        }
+        $sql .= ' LIMIT 1';
+        $taken = $this->conn->prepare($sql);
+        $taken->execute($params);
+        if ($taken->fetch()) {
+            throw new RuntimeException('That email is already used by another member.');
+        }
+    }
+
+    /**
+     * Reject an email owned by a login that is not this member.
+     */
+    public function assertLoginEmailAvailable(int $memberId, ?string $email): void
+    {
+        $email = $this->normalizeIdentityEmail($email);
+        if ($email === null || $memberId <= 0) {
+            return;
+        }
+
+        $taken = $this->conn->prepare(
+            'SELECT user_id FROM users
+             WHERE email = :email AND (member_id IS NULL OR member_id <> :mid)
+             LIMIT 1'
+        );
+        $taken->execute([':email' => $email, ':mid' => $memberId]);
+        if ($taken->fetch()) {
+            throw new RuntimeException('That email is already used by another account.');
+        }
+    }
+
+    private function normalizeIdentityEmail(mixed $email): ?string
+    {
+        $email = trim((string)$email);
+        return $email === '' ? null : $email;
+    }
+
+    private function executeIdentityWrite(PDOStatement $stmt, array $params): void
+    {
+        try {
+            $stmt->execute($params);
+        } catch (PDOException $e) {
+            if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+                throw new RuntimeException('That email is already used by another account.');
+            }
+            throw $e;
+        }
+    }
+
     public function getAllPaginated(
         array $filters = [],
         int $page = 1,
@@ -529,6 +689,19 @@ class Members
                 return ['success' => false, 'error' => 'No data to update'];
             }
 
+            $syncFields = [];
+            if (array_key_exists('full_name', $data)) {
+                $syncName = trim((string)$data['full_name']);
+                if ($syncName !== '') {
+                    $syncFields['full_name'] = $syncName;
+                }
+            }
+            if (array_key_exists('email', $data)) {
+                $syncFields['email'] = $this->normalizeIdentityEmail($data['email']);
+                $this->assertMemberEmailAvailable($memberId, $syncFields['email']);
+                $this->assertLoginEmailAvailable($memberId, $syncFields['email']);
+            }
+
             $updateFields[] = 'updated_at = NOW()';
             $updateFields[] = 'updated_by = :updated_by';
 
@@ -538,6 +711,10 @@ class Members
 
             if (!$success) {
                 throw new RuntimeException('Failed to update member');
+            }
+
+            if ($syncFields !== []) {
+                $this->copyIdentityToLogin($memberId, $syncFields);
             }
 
             $this->conn->commit();
@@ -551,6 +728,9 @@ class Members
             }
             error_log('Members::update failed: ' . $e->getMessage());
             $message = 'The member record could not be saved.';
+            if ($e instanceof RuntimeException && str_starts_with($e->getMessage(), 'That email')) {
+                $message = $e->getMessage();
+            }
             $sqlState = $e instanceof PDOException ? (int)($e->errorInfo[1] ?? 0) : 0;
             if ($sqlState === 1265 || $sqlState === 1366) {
                 $message = 'One of the selected values is not allowed. Check the rank, role, status, or category.';

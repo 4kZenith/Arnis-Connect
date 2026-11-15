@@ -91,6 +91,13 @@ try {
             echo json_encode(['success' => false, 'message' => 'That email address is already registered.']);
             exit;
         }
+        $linkedForEmail = ($memberId !== '' && $memberId !== '0' && ctype_digit($memberId)) ? (int)$memberId : 0;
+        try {
+            (new Members($db))->assertMemberEmailAvailable($linkedForEmail, $email);
+        } catch (RuntimeException $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
     }
 
     $memberRoles = ['Head Coach' => 'Head Coach', 'Coach/Trainer' => 'Coach', 'Member' => 'Player'];
@@ -173,13 +180,32 @@ try {
             throw new RuntimeException('User insert failed.');
         }
         $newUserId = (int)$db->lastInsertId();
+        if (!$createProfile && $memberIdValue) {
+            $membersModel = new Members($db);
+            $membersModel->copyIdentityToMember($memberIdValue, [
+                'full_name' => $fullName,
+                'email' => $email !== '' ? $email : null,
+            ]);
+            $linkedPosition = Members::positionForRole($role);
+            if ($linkedPosition !== null) {
+                $positionSync = $db->prepare(
+                    'UPDATE members SET member_type = :pos, updated_at = NOW()
+                     WHERE member_id = :id AND is_voided = 0'
+                );
+                $positionSync->execute([':pos' => $linkedPosition, ':id' => $memberIdValue]);
+            }
+        }
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
         error_log('process_add_user create error: ' . $e->getMessage());
-        echo json_encode(['success' => false, 'message' => 'Failed to create user. Please try again.']);
+        $message = 'Failed to create user. Please try again.';
+        if ($e instanceof RuntimeException && str_starts_with($e->getMessage(), 'That email')) {
+            $message = $e->getMessage();
+        }
+        echo json_encode(['success' => false, 'message' => $message]);
         exit;
     }
 
