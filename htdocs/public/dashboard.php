@@ -553,7 +553,7 @@ try {
 
         if ($totalActivities > 0) {
             $auditStmt = $db->prepare(
-                'SELECT actor_name, actor_role, action, module, description, created_at
+                'SELECT audit_id, actor_name, actor_role, action, module, description, created_at
                  FROM audit_logs' . $auditWhere . '
                  ORDER BY created_at DESC, audit_id DESC
                  LIMIT ' . (int)$activityPerPage . ' OFFSET ' . (int)$activityOffset
@@ -561,6 +561,7 @@ try {
             $auditStmt->execute($auditParams);
             foreach ($auditStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
                 $activities[] = [
+                    'id' => (int)($row['audit_id'] ?? 0),
                     'ts' => (string)($row['created_at'] ?? ''),
                     'actor' => (string)($row['actor_name'] ?? 'System'),
                     'label' => (string)($row['description'] ?? ''),
@@ -616,6 +617,15 @@ try {
 
     <main id="page" class="flex-1 p-4 sm:p-5 lg:p-6 h-screen overflow-y-auto custom-scrollbar opacity-0 translate-x-8 transition-all duration-500 ease-out">
         <?php include_once __DIR__ . '/../includes/header.php'; ?>
+        <?php
+        $activityDeleteFlash = $_SESSION['activity_delete_flash'] ?? null;
+        unset($_SESSION['activity_delete_flash']);
+        ?>
+        <?php if (is_array($activityDeleteFlash) && !empty($activityDeleteFlash['message'])): ?>
+        <div class="<?= ($activityDeleteFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+            <i class="fas <?= ($activityDeleteFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$activityDeleteFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+        </div>
+        <?php endif; ?>
 
         <!-- Role hero: every role gets its own dashboard identity + shortcuts -->
         <div class="card-bg p-4 sm:p-5 rounded-xl sm:rounded-2xl mb-4 lg:mb-6 relative overflow-hidden">
@@ -1237,12 +1247,27 @@ try {
             <!-- Recent Activity -->
             <div class="lg:col-span-1">
                 <div class="card-bg rounded-2xl sm:rounded-3xl h-full flex flex-col">
-                    <div class="p-4 sm:p-6 border-b border-gray-800 flex justify-between items-center">
+                    <div class="p-4 sm:p-6 border-b border-gray-800 flex justify-between items-center gap-3">
                         <h3 class="text-xs sm:text-sm font-bold uppercase tracking-widest italic">Recent Activity</h3>
                         <?php if (hasRole('SuperAdmin')): ?>
                         <a href="activity_log.php" class="text-[9px] sm:text-[10px] text-purple-400 hover:text-white uppercase font-bold italic transition">View All</a>
                         <?php endif; ?>
                     </div>
+                    <?php if (hasRole('SuperAdmin') && !empty($paginatedActivities)): ?>
+                    <form id="recentActivityDeleteForm" method="POST" action="../actions/process_delete_activity.php" onsubmit="return confirmRecentDelete(event)">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="return_to" value="dashboard">
+                        <div class="px-4 sm:px-6 pt-4 flex flex-wrap items-center justify-between gap-2">
+                            <label class="flex items-center gap-2 text-[10px] uppercase tracking-widest text-gray-400">
+                                <input type="checkbox" class="accent-purple-500" onchange="document.querySelectorAll('#recentActivityDeleteForm input[name=\'audit_ids[]\']').forEach(box => box.checked = this.checked)">
+                                Select
+                            </label>
+                            <button type="submit" name="delete_selected" value="1" class="px-3 py-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-red-300 text-[10px] font-black uppercase tracking-widest">
+                                <i class="fas fa-trash mr-1"></i>Delete selected
+                            </button>
+                        </div>
+                        <p class="px-4 sm:px-6 pt-2 text-[10px] text-gray-500">Removing a line only clears this list. It does not undo the training, payment, or other change.</p>
+                    <?php endif; ?>
                     <div class="p-4 sm:p-6 flex-1 overflow-y-auto custom-scrollbar space-y-4 sm:space-y-6 max-h-[400px] sm:max-h-[600px]">
 
                         <?php if (!empty($paginatedActivities)):
@@ -1291,13 +1316,19 @@ try {
                         ?>
                         <div class="flex gap-3 sm:gap-4 relative">
                             <div class="w-1 <?= $dotColor ?> h-full absolute -left-4 sm:-left-6 opacity-50"></div>
+                            <?php if (hasRole('SuperAdmin') && (int)($act['id'] ?? 0) > 0): ?>
+                            <input type="checkbox" name="audit_ids[]" value="<?= (int)$act['id'] ?>" class="mt-2 accent-purple-500 flex-shrink-0" aria-label="Select this activity">
+                            <?php endif; ?>
                             <div class="min-w-[32px] sm:min-w-[40px] h-8 sm:h-10 rounded-full bg-white/[0.02] flex items-center justify-center text-gray-300 flex-shrink-0">
                                 <i class="fas <?= $icon ?> text-xs"></i>
                             </div>
-                            <div>
+                            <div class="min-w-0 flex-1">
                                 <p class="text-[11px] sm:text-xs leading-relaxed"><span class="font-bold text-gray-300"><?= htmlspecialchars($act['actor'], ENT_QUOTES, 'UTF-8') ?></span> <?= htmlspecialchars($act['label'], ENT_QUOTES, 'UTF-8') ?></p>
                                 <p class="text-[9px] text-gray-500 uppercase mt-1 italic"><?= htmlspecialchars(date('M d, Y H:i', (int)strtotime($act['ts'])), ENT_QUOTES, 'UTF-8') ?></p>
                             </div>
+                            <?php if (hasRole('SuperAdmin') && (int)($act['id'] ?? 0) > 0): ?>
+                            <button type="submit" name="only_id" value="<?= (int)$act['id'] ?>" class="text-gray-600 hover:text-red-400 text-xs flex-shrink-0" title="Remove this line"><i class="fas fa-trash"></i></button>
+                            <?php endif; ?>
                         </div>
                         <?php
                             endforeach;
@@ -1319,6 +1350,23 @@ try {
                         <?php endif; ?>
 
                     </div>
+                    <?php if (hasRole('SuperAdmin') && !empty($paginatedActivities)): ?>
+                    </form>
+                    <script>
+                    function confirmRecentDelete(event) {
+                        const button = event.submitter;
+                        if (button && button.name === 'only_id') {
+                            return confirm('Remove this activity line? This does not undo the action.');
+                        }
+                        const selected = document.querySelectorAll('#recentActivityDeleteForm input[name="audit_ids[]"]:checked').length;
+                        if (selected === 0) {
+                            alert('Select at least one activity.');
+                            return false;
+                        }
+                        return confirm('Remove ' + selected + ' activity line(s)? This does not undo those actions.');
+                    }
+                    </script>
+                    <?php endif; ?>
 
                     <!-- Activity Pagination -->
                     <?php if ($totalActivityPages > 1): ?>
