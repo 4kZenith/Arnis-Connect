@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/timezone.php';
+
 const ARNIS_SESSION_IDLE_TIMEOUT = 1800;
 const ARNIS_SESSION_REGENERATION_INTERVAL = 900;
 

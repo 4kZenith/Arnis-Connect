@@ -42,6 +42,7 @@ $totalPages = 1;
 $stats = ['total' => 0, 'active' => 0, 'public_count' => 0, 'private_count' => 0];
 $pendingApprovals = [];
 $pendingApprovalCount = 0;
+$promotionRequests = [];
 $membersError = null;
 
 try {
@@ -80,6 +81,16 @@ $memberFieldPermissions = [
     // Only SuperAdmin may see or act on pending registration requests.
     $pendingApprovals = $isSuperAdmin ? $membersModel->getPendingRegistrationRequests(20) : [];
     $pendingApprovalCount = $isSuperAdmin ? $membersModel->countPendingRegistrationRequests() : 0;
+    $promotionRequests = [];
+    if ($canModifyMembers) {
+        require_once __DIR__ . '/../classes/RankPromotions.php';
+        foreach ((new RankPromotions($db))->listPending() as $promoRow) {
+            $promoMemberId = (int)($promoRow['member_id'] ?? 0);
+            if ($memberWriteScope === true || canPerformAction('members', 'write', ['member_id' => $promoMemberId])) {
+                $promotionRequests[] = $promoRow;
+            }
+        }
+    }
 
     $paginatedMembers = $result['members'];
     $totalMembers = $result['total'];
@@ -151,6 +162,15 @@ function mmEditOnclick(array $member): string
         <?php include_once "../includes/sidebar.php"; ?>
         <main id="page" class="flex-1 p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto opacity-0 translate-x-8 transition-all duration-500 ease-out">
             <?php include_once "../includes/header.php"; ?>
+            <?php
+            $rankPromoFlash = $_SESSION['rank_promotion_flash'] ?? null;
+            unset($_SESSION['rank_promotion_flash']);
+            ?>
+            <?php if (is_array($rankPromoFlash) && !empty($rankPromoFlash['message'])): ?>
+            <div class="<?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+                <i class="fas <?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$rankPromoFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <?php endif; ?>
 
             <?php if (!empty($membersError)): ?>
             <div class="bg-red-500/10 border border-red-500/30 text-red-400 rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
@@ -180,6 +200,48 @@ function mmEditOnclick(array $member): string
                     <div class="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest mt-1">Private Players</div>
                 </div>
             </div>
+
+            <?php if ($canModifyMembers && $promotionRequests !== []): ?>
+            <section class="card-bg rounded-2xl p-4 sm:p-6 mb-6">
+                <h2 class="font-bold text-xs sm:text-sm tracking-widest uppercase flex items-center gap-2 mb-4">
+                    <i class="fas fa-medal text-yellow-300"></i> Promotion requests
+                    <span class="text-yellow-300"><?= count($promotionRequests) ?></span>
+                </h2>
+                <div class="space-y-3">
+                    <?php foreach ($promotionRequests as $promo): ?>
+                    <div class="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                        <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+                            <div class="text-xs text-gray-300">
+                                <a href="member_profile.php?id=<?= (int)$promo['member_id'] ?>" class="font-bold text-white hover:text-yellow-300"><?= htmlspecialchars((string)$promo['member_name'], ENT_QUOTES, 'UTF-8') ?></a>
+                                <p class="mt-1"><?= htmlspecialchars((string)$promo['current_rank'], ENT_QUOTES, 'UTF-8') ?> → <span class="text-yellow-300"><?= htmlspecialchars((string)$promo['requested_rank'], ENT_QUOTES, 'UTF-8') ?></span></p>
+                                <?php if (!empty($promo['message'])): ?><p class="mt-1 text-gray-400"><?= htmlspecialchars((string)$promo['message'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                                <?php if (!empty($promo['proof_path'])): ?>
+                                    <a href="../actions/view_rank_promotion_proof.php?id=<?= (int)$promo['request_id'] ?>" target="_blank" rel="noopener" class="inline-flex mt-2 text-[10px] font-black uppercase tracking-widest text-purple-300">View certificate</a>
+                                <?php endif; ?>
+                            </div>
+                            <div class="flex flex-col sm:flex-row gap-2 lg:min-w-[280px]">
+                                <form method="POST" action="../actions/process_rank_promotion.php" onsubmit="return confirm('Approve this promotion?');">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                    <input type="hidden" name="op" value="approve">
+                                    <input type="hidden" name="return_to" value="members">
+                                    <input type="hidden" name="request_id" value="<?= (int)$promo['request_id'] ?>">
+                                    <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black uppercase tracking-widest">Approve</button>
+                                </form>
+                                <form method="POST" action="../actions/process_rank_promotion.php" class="flex flex-1 gap-2">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                    <input type="hidden" name="op" value="decline">
+                                    <input type="hidden" name="return_to" value="members">
+                                    <input type="hidden" name="request_id" value="<?= (int)$promo['request_id'] ?>">
+                                    <input type="text" name="review_note" required maxlength="255" placeholder="Reason" class="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white">
+                                    <button type="submit" class="px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Decline</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+            <?php endif; ?>
 
             <!-- Plain GET form: search runs ONLY on Enter, the Search
                  button, or a filter change (full page reload). Typing alone

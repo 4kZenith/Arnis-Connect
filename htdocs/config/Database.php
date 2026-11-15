@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/timezone.php';
+
 class Database
 {
     private ?PDO $conn = null;
@@ -49,6 +51,9 @@ class Database
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
+            // Named zones need MySQL timezone tables, which InfinityFree does not load.
+            // +08:00 is Philippine time and works everywhere.
+            $this->conn->exec("SET time_zone = '+08:00'");
             return $this->conn;
         } catch (PDOException $e) {
             error_log('Arnis Connect database connection failed: ' . $e->getMessage());

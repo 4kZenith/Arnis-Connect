@@ -204,6 +204,24 @@ function asE(?string $value, string $fallback = ''): string
     return htmlspecialchars($value !== '' ? $value : $fallback, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** created_at / updated_at are stored in Philippine time (UTC+8). */
+function asFormatStamp(?string $date, string $fallback = 'Not recorded'): string
+{
+    $date = trim((string)$date);
+    if ($date === '' || str_starts_with($date, '0000-00-00')) {
+        return $fallback;
+    }
+    $tz = new DateTimeZone('Asia/Manila');
+    $parsed = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', substr($date, 0, 19), $tz);
+    if ($parsed === false) {
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', substr($date, 0, 10), $tz);
+    }
+    if ($parsed === false) {
+        return $fallback;
+    }
+    return $parsed->format('M j, Y g:i A');
+}
+
 function asFormatDate(?string $date, string $fallback = 'TBA'): string
 {
     $date = trim((string)$date);
@@ -746,8 +764,8 @@ $sessionPageLink = static function (int $target) use ($trainingId): string {
                     </div>
 
                     <div class="text-[9px] sm:text-[10px] text-gray-600 space-y-1 pl-2 mt-4">
-                        <p>CREATED: <?= asE(asFormatDate($training['created_at'] ?? null)) ?></p>
-                        <p>LAST UPDATE: <?= asE(asFormatDate($training['updated_at'] ?? null)) ?></p>
+                        <p>CREATED: <?= asE(asFormatStamp($training['created_at'] ?? null)) ?></p>
+                        <p>LAST UPDATE: <?= asE(asFormatStamp($training['updated_at'] ?? null)) ?></p>
                     </div>
                 </div>
             </div>
