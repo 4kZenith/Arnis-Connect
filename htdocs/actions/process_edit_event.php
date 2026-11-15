@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/Events.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -130,6 +131,34 @@ try {
             'handler_id' => $handlerId,
         ]
     );
+
+    $detailsChanged = (string)($existing['event_name'] ?? '') !== $eventName
+        || (string)($existing['event_date'] ?? '') !== $eventDate
+        || trim((string)($existing['location'] ?? '')) !== $location
+        || (string)($existing['event_type'] ?? '') !== $eventType;
+    if ($detailsChanged) {
+        try {
+            $mailer = new Mailer($db);
+            $emails = $mailer->eventParticipantEmails($eventId);
+            if ($emails === []) {
+                $emails = $mailer->activeMemberEmails($targetPlayerCategory, $handlerId > 0 ? [$handlerId] : []);
+            }
+            if ($handlerId > 0) {
+                $handler = $mailer->contactForMember($handlerId);
+                if ($handler !== null) {
+                    $emails[] = $handler['email'];
+                }
+            }
+            $mailer->sendPlainBulk(
+                $emails,
+                'Event updated: ' . $eventName,
+                'The ' . $eventType . ' event "' . $eventName . '" is now on ' . $eventDate
+                . ' at ' . ($location !== '' ? $location : 'a location to be announced') . '.'
+            );
+        } catch (Throwable $mailError) {
+            error_log('process_edit_event notification skipped: ' . $mailError->getMessage());
+        }
+    }
 
     echo json_encode(['success' => true, 'message' => 'Event updated successfully.']);
 } catch (RuntimeException $e) {

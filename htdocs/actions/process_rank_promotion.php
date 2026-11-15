@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
 require_once __DIR__ . '/../classes/Members.php';
 require_once __DIR__ . '/../classes/RankPromotions.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 function rpRedirect(string $type, string $message, int $memberId): void
 {
@@ -156,6 +157,15 @@ try {
         $note = mb_substr(trim((string)($_POST['review_note'] ?? '')), 0, 255);
         $promos->decline($requestId, $userId, $note);
         AuditLog::record($db, 'reject', 'members', $memberId, 'Declined promotion request: ' . $note);
+        try {
+            (new Mailer($db))->notifyMember(
+                $memberId,
+                'Rank promotion declined',
+                'Your request for the next rank was declined. Reason: ' . $note
+            );
+        } catch (Throwable $mailError) {
+            error_log('rank promotion decline email skipped: ' . $mailError->getMessage());
+        }
         rpRedirect('success', 'Promotion request declined.', $memberId);
     }
 
@@ -184,6 +194,15 @@ try {
             'Approved promotion for ' . (string)$member['full_name'] . ' from ' . $current . ' to ' . $next,
             ['old_rank' => $current, 'new_rank' => $next]
         );
+        try {
+            (new Mailer($db))->notifyMember(
+                $memberId,
+                'Rank promotion approved',
+                'Your rank promotion was approved. You are now ' . $next . '.'
+            );
+        } catch (Throwable $mailError) {
+            error_log('rank promotion approval email skipped: ' . $mailError->getMessage());
+        }
         rpRedirect('success', 'Approved. The member is now ' . $next . '.', $memberId);
     }
 } catch (Throwable $e) {

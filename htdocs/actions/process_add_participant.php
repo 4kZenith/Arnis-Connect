@@ -6,6 +6,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/Mailer.php';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -42,7 +43,7 @@ try {
 
     $db = (new Database())->connect();
 
-    $stmt = $db->prepare('SELECT event_id, target_player_category, created_by, handler_id FROM events WHERE event_id = :id AND is_voided = 0 LIMIT 1');
+    $stmt = $db->prepare('SELECT event_id, event_name, event_date, location, target_player_category, created_by, handler_id FROM events WHERE event_id = :id AND is_voided = 0 LIMIT 1');
     $stmt->execute([':id' => $eventId]);
     $event = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$event) {
@@ -61,7 +62,7 @@ try {
         }
     }
 
-    $stmt = $db->prepare('SELECT member_id, status, player_category FROM members WHERE member_id = :id AND is_voided = 0 LIMIT 1');
+    $stmt = $db->prepare('SELECT member_id, full_name, status, player_category FROM members WHERE member_id = :id AND is_voided = 0 LIMIT 1');
     $stmt->execute([':id' => $memberId]);
     $member = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$member) {
@@ -100,6 +101,20 @@ try {
         'Added ' . (string)($member['full_name'] ?? ('member #' . $memberId)) . ' to event #' . $eventId . ' as ' . $role,
         ['event_id' => $eventId, 'member_id' => $memberId]
     );
+
+    try {
+        $where = trim((string)($event['location'] ?? ''));
+        (new Mailer($db))->notifyMember(
+            $memberId,
+            'Added to an event',
+            'You were added to ' . (string)($event['event_name'] ?? 'an event')
+            . ' on ' . (string)($event['event_date'] ?? '')
+            . ' at ' . ($where !== '' ? $where : 'a location to be announced')
+            . ' as ' . $role . '.'
+        );
+    } catch (Throwable $mailError) {
+        error_log('process_add_participant notification skipped: ' . $mailError->getMessage());
+    }
 
     echo json_encode(['success' => true, 'message' => 'Participant added successfully.']);
 } catch (RuntimeException $e) {

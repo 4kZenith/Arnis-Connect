@@ -15,13 +15,13 @@ function ptRedirect(string $type, string $message): void
     exit;
 }
 
-function ptNotify(PDO $db, ?string $email, string $name, string $subject, string $message): void
+function ptNotifyMember(PDO $db, int $memberId, string $subject, string $message): void
 {
-    if ($email === null || $email === '') {
+    if ($memberId <= 0) {
         return;
     }
     try {
-        (new Mailer($db))->sendNotice($email, $name, $subject, $message);
+        (new Mailer($db))->notifyMember($memberId, $subject, $message);
     } catch (Throwable $e) {
         error_log('private training notice failed: ' . $e->getMessage());
     }
@@ -145,7 +145,6 @@ $coachMayReview = $coachMemberId > 0 && (
     || ($status === 'Pending' && in_array((int)($request['preferred_coach_id'] ?? 0), [0, $coachMemberId], true))
 );
 $canReview = $isAdminReviewer || $coachMayReview;
-$memberEmail = (string)($request['member_email'] ?? '');
 $memberName = (string)$request['member_name'];
 
 try {
@@ -183,12 +182,13 @@ try {
             AuditLog::record($db, 'approve', 'private_trainings', $requestId, "Approved private training for {$memberName} on {$date} at " . ptPeso($fee) . " ({$newStatus})");
 
             $when = date('M j, Y', strtotime($date)) . ' ' . date('g:i A', strtotime($start)) . ' to ' . date('g:i A', strtotime($end));
+            $memberIdForMail = (int)$request['member_id'];
             if ($newStatus === 'Confirmed') {
-                ptNotify($db, $memberEmail, $memberName, 'Private training confirmed',
+                ptNotifyMember($db, $memberIdForMail, 'Private training confirmed',
                     "Your private training is confirmed for {$when} at {$location}. Fee: " . ptPeso($fee) . '.');
                 ptRedirect('success', 'Approved and scheduled. The session now appears in Trainings.');
             }
-            ptNotify($db, $memberEmail, $memberName, 'Private training: please confirm the fee',
+            ptNotifyMember($db, $memberIdForMail, 'Private training: please confirm the fee',
                 "A coach can train you on {$when} at {$location} for " . ptPeso($fee) . '. Open Private Trainings to accept or decline.');
             ptRedirect('success', 'Sent to the member to accept the ' . ptPeso($fee) . ' fee.');
 
@@ -202,7 +202,7 @@ try {
             }
             $pt->close($request, 'Rejected', $userId, $note);
             AuditLog::record($db, 'reject', 'private_trainings', $requestId, "Rejected private training for {$memberName}: {$note}");
-            ptNotify($db, $memberEmail, $memberName, 'Private training request declined', "Your private training request was not approved. Reason: {$note}");
+            ptNotifyMember($db, (int)$request['member_id'], 'Private training request declined', "Your private training request was not approved. Reason: {$note}");
             ptRedirect('success', 'Request rejected.');
 
         case 'accept':
@@ -215,10 +215,7 @@ try {
             }
             $pt->memberAccept($requestId, $userId);
             AuditLog::record($db, 'approve', 'private_trainings', $requestId, 'Member accepted private training fee ' . ptPeso((float)$request['fee_amount']));
-            $coachEmail = $db->prepare('SELECT email, full_name FROM members WHERE member_id = :id');
-            $coachEmail->execute([':id' => (int)$request['coach_id']]);
-            $coach = $coachEmail->fetch(PDO::FETCH_ASSOC) ?: [];
-            ptNotify($db, (string)($coach['email'] ?? ''), (string)($coach['full_name'] ?? 'Coach'), 'Private training confirmed',
+            ptNotifyMember($db, (int)$request['coach_id'], 'Private training confirmed',
                 "{$memberName} accepted the private training on {$request['session_date']}.");
             ptRedirect('success', 'Confirmed. The session is now in your Trainings list.');
 
@@ -228,6 +225,12 @@ try {
             }
             $pt->close($request, 'Declined', $userId, '');
             AuditLog::record($db, 'reject', 'private_trainings', $requestId, 'Member declined the private training fee');
+            ptNotifyMember(
+                $db,
+                (int)$request['coach_id'],
+                'Private training offer declined',
+                $memberName . ' declined the private training offer.'
+            );
             ptRedirect('success', 'Offer declined. You can send a new request any time.');
 
         case 'cancel':
@@ -244,7 +247,7 @@ try {
             $pt->close($request, 'Cancelled', $userId, $note);
             AuditLog::record($db, 'status_change', 'private_trainings', $requestId, "Cancelled private training for {$memberName}" . ($note !== '' ? ": {$note}" : ''));
             if (!$isOwner) {
-                ptNotify($db, $memberEmail, $memberName, 'Private training cancelled',
+                ptNotifyMember($db, (int)$request['member_id'], 'Private training cancelled',
                     'Your private training was cancelled.' . ($note !== '' ? " Reason: {$note}" : ''));
             }
             ptRedirect('success', 'Request cancelled.');
@@ -276,6 +279,16 @@ try {
                 PrivateTrainings::unlinkReceipt($old);
             }
             AuditLog::record($db, 'create', 'private_trainings', $requestId, "{$memberName} submitted a {$method} receipt for private training");
+            try {
+                $mailer = new Mailer($db);
+                $mailer->sendPlainBulk(
+                    $mailer->emailsForRoles(['Officer', 'SuperAdmin']),
+                    'Private training receipt to review',
+                    $memberName . ' submitted a ' . $method . ' receipt for a private training session. Sign in and open Private Training to approve or reject it.'
+                );
+            } catch (Throwable $mailError) {
+                error_log('private training receipt notice skipped: ' . $mailError->getMessage());
+            }
             ptRedirect('success', 'Receipt sent. It will be marked paid after the treasurer approves the photo.');
 
         case 'approve_receipt':
@@ -287,7 +300,7 @@ try {
             }
             $fundId = $pt->markPaid($request, $userId);
             AuditLog::record($db, 'approve', 'private_trainings', $requestId, "Approved {$request['receipt_method']} receipt and recorded " . ptPeso((float)$request['fee_amount']) . " from {$memberName}");
-            ptNotify($db, $memberEmail, $memberName, 'Private training payment approved',
+            ptNotifyMember($db, (int)$request['member_id'], 'Private training payment approved',
                 'Your payment receipt was approved. The private session is paid and confirmed.');
             ptRedirect('success', 'Receipt approved. The private session is paid and recorded in Funds.');
 
@@ -298,7 +311,7 @@ try {
             $note = mb_substr(trim((string)($_POST['receipt_note'] ?? '')), 0, 255);
             $pt->rejectReceipt($requestId, $note);
             AuditLog::record($db, 'reject', 'private_trainings', $requestId, "Rejected payment receipt from {$memberName}: {$note}");
-            ptNotify($db, $memberEmail, $memberName, 'Private training receipt needs another photo',
+            ptNotifyMember($db, (int)$request['member_id'], 'Private training receipt needs another photo',
                 "Your payment receipt was not accepted. Reason: {$note}");
             ptRedirect('success', 'Receipt sent back to the member.');
     }
