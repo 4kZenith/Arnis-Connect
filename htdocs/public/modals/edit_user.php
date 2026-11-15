@@ -32,6 +32,7 @@
                 <label class="block text-gray-500 text-[10px] uppercase font-bold mb-2 tracking-widest">Linked Member ID (optional)</label>
                 <input type="number" id="edit_member_id" name="member_id" min="0" step="1"
                        class="w-full bg-[#1d212a] rounded-xl px-4 py-4 text-sm focus:outline-none border border-transparent focus:border-orange-500 transition text-white">
+                <p class="text-[10px] text-gray-500 mt-2">Leave blank when this login and the member profile are the same person. Saving either screen keeps one email.</p>
             </div>
 
             <div class="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
