@@ -320,6 +320,15 @@ $csrfToken = arnisCsrfToken();
 
         <main id="page" class="flex-1 p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto opacity-0 translate-x-8 transition-all duration-500 ease-out">
             <?php include_once "../includes/header.php"; ?>
+            <?php
+            $activityDeleteFlash = $_SESSION['activity_delete_flash'] ?? null;
+            unset($_SESSION['activity_delete_flash']);
+            ?>
+            <?php if (is_array($activityDeleteFlash) && !empty($activityDeleteFlash['message'])): ?>
+            <div class="<?= ($activityDeleteFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+                <i class="fas <?= ($activityDeleteFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= alE((string)$activityDeleteFlash['message']) ?>
+            </div>
+            <?php endif; ?>
 
             <?php if ($loadError !== null): ?>
                 <div class="bg-red-500/10 border border-red-500/30 text-red-400 rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
@@ -329,7 +338,7 @@ $csrfToken = arnisCsrfToken();
 
             <div class="card-bg border-l-4 border-l-purple-500 rounded-2xl px-4 py-3 mb-6 text-xs text-gray-300">
                 <i class="fas fa-shield-halved mr-2 text-purple-400"></i>
-                Append-only audit trail. Every entry records who did what, when, and from which IP address. Entries cannot be edited or deleted from the application.
+                Every entry records who did what, when, and from which IP address. You can remove lines to tidy this list. Removing a line does not undo the member, training, payment, or other change it describes.
             </div>
 
             <!-- Stats Cards -->
@@ -393,6 +402,17 @@ $csrfToken = arnisCsrfToken();
             </div>
 
             <!-- Log Table -->
+            <form id="activityDeleteForm" method="POST" action="../actions/process_delete_activity.php" onsubmit="return confirmActivityDelete(event)">
+            <input type="hidden" name="csrf_token" value="<?= alE($csrfToken) ?>">
+            <input type="hidden" name="return_to" value="activity_log">
+            <?php if (!empty($events)): ?>
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <p class="text-[10px] text-gray-500">Select the lines to remove. The records they describe stay in place.</p>
+                <button type="submit" name="delete_selected" value="1" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-red-300 text-[10px] font-black uppercase tracking-widest">
+                    <i class="fas fa-trash mr-1"></i>Delete selected
+                </button>
+            </div>
+            <?php endif; ?>
             <div class="card-bg rounded-2xl sm:rounded-3xl overflow-hidden">
                 <!-- Mobile cards -->
                 <div class="block lg:hidden">
@@ -408,6 +428,7 @@ $csrfToken = arnisCsrfToken();
                             ?>
                                 <div class="bg-white/[0.02] rounded-xl p-4 border border-gray-800/50">
                                     <div class="flex items-center gap-2 mb-2">
+                                        <input type="checkbox" name="audit_ids[]" value="<?= (int)($event['audit_id'] ?? 0) ?>" class="accent-purple-500" aria-label="Select this activity">
                                         <span class="<?= $meta['badge'] ?> px-2 py-1 rounded-full text-[10px] font-bold uppercase">
                                             <i class="fas <?= $meta['icon'] ?> mr-1"></i><?= alE($meta['label']) ?>
                                         </span>
@@ -421,12 +442,17 @@ $csrfToken = arnisCsrfToken();
                                         <div><i class="fas fa-clock w-4"></i> <?= alE(alFormatDateTime($event['created_at'] ?? null)) ?></div>
                                         <div><i class="fas fa-network-wired w-4"></i> <?= alE((string)($event['ip_address'] ?? '—')) ?></div>
                                     </div>
+                                    <div class="mt-3 flex gap-2">
                                     <?php if ($canRestore && $recordId > 0): ?>
-                                    <button onclick="openRestoreModal(<?= alJsArg($module) ?>, <?= $recordId ?>, <?= alJsArg((string)($event['description'] ?? '')) ?>)"
-                                            class="mt-3 w-full bg-green-500/10 text-green-400 text-center py-2 rounded-lg text-[10px] font-bold hover:bg-green-500 hover:text-white transition">
+                                    <button type="button" onclick="openRestoreModal(<?= alJsArg($module) ?>, <?= $recordId ?>, <?= alJsArg((string)($event['description'] ?? '')) ?>)"
+                                            class="flex-1 bg-green-500/10 text-green-400 text-center py-2 rounded-lg text-[10px] font-bold hover:bg-green-500 hover:text-white transition">
                                         <i class="fas fa-undo mr-1"></i> Restore
                                     </button>
                                     <?php endif; ?>
+                                    <button type="submit" name="only_id" value="<?= (int)($event['audit_id'] ?? 0) ?>" class="flex-1 bg-white/5 text-red-300 text-center py-2 rounded-lg text-[10px] font-bold hover:bg-red-500/20 transition">
+                                        <i class="fas fa-trash mr-1"></i> Remove line
+                                    </button>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -438,6 +464,9 @@ $csrfToken = arnisCsrfToken();
                     <table class="w-full text-left border-collapse">
                         <thead class="text-gray-400 text-xs uppercase tracking-widest border-b border-gray-700">
                             <tr>
+                                <th class="p-4 lg:p-6">
+                                    <input type="checkbox" class="accent-purple-500" aria-label="Select all activities on this page" onchange="document.querySelectorAll('#activityDeleteForm input[name=\'audit_ids[]\']').forEach(box => box.checked = this.checked)">
+                                </th>
                                 <th class="p-4 lg:p-6">Date &amp; Time</th>
                                 <th class="p-4 lg:p-6">Actor</th>
                                 <th class="p-4 lg:p-6">Action</th>
@@ -450,7 +479,7 @@ $csrfToken = arnisCsrfToken();
                         <tbody class="text-sm">
                             <?php if (empty($events)): ?>
                                 <tr>
-                                    <td colspan="7" class="p-6 text-center text-gray-500">No audit events found.</td>
+                                    <td colspan="8" class="p-6 text-center text-gray-500">No audit events found.</td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($events as $event):
@@ -460,6 +489,9 @@ $csrfToken = arnisCsrfToken();
                                     $canRestore = alCanRestore($module, (string)($event['action'] ?? ''));
                                 ?>
                                     <tr class="border-b border-gray-800 hover:bg-white/5 transition">
+                                        <td class="p-4 lg:p-6">
+                                            <input type="checkbox" name="audit_ids[]" value="<?= (int)($event['audit_id'] ?? 0) ?>" class="accent-purple-500" aria-label="Select this activity">
+                                        </td>
                                         <td class="p-4 lg:p-6 text-xs whitespace-nowrap"><?= alE(alFormatDateTime($event['created_at'] ?? null)) ?></td>
                                         <td class="p-4 lg:p-6">
                                             <div class="font-semibold"><?= alE((string)($event['actor_name'] ?? 'System')) ?></div>
@@ -478,14 +510,17 @@ $csrfToken = arnisCsrfToken();
                                         <td class="p-4 lg:p-6 text-xs max-w-md break-words"><?= alE((string)($event['description'] ?? '—')) ?></td>
                                         <td class="p-4 lg:p-6 text-xs text-gray-400 whitespace-nowrap"><?= alE((string)($event['ip_address'] ?? '—')) ?></td>
                                         <td class="p-4 lg:p-6">
+                                            <div class="flex flex-wrap gap-2">
                                             <?php if ($canRestore && $recordId > 0): ?>
-                                                <button onclick="openRestoreModal(<?= alJsArg($module) ?>, <?= $recordId ?>, <?= alJsArg((string)($event['description'] ?? '')) ?>)"
+                                                <button type="button" onclick="openRestoreModal(<?= alJsArg($module) ?>, <?= $recordId ?>, <?= alJsArg((string)($event['description'] ?? '')) ?>)"
                                                         class="bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-white px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap">
                                                     <i class="fas fa-undo mr-1"></i> Restore
                                                 </button>
-                                            <?php else: ?>
-                                                <span class="text-gray-600 text-xs">—</span>
                                             <?php endif; ?>
+                                                <button type="submit" name="only_id" value="<?= (int)($event['audit_id'] ?? 0) ?>" class="bg-white/5 text-red-300 hover:bg-red-500/20 px-3 py-1 rounded-full text-xs font-bold transition whitespace-nowrap">
+                                                    <i class="fas fa-trash mr-1"></i> Remove
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -526,6 +561,23 @@ $csrfToken = arnisCsrfToken();
                 </div>
                 <?php endif; ?>
             </div>
+            </form>
+            <script>
+            function confirmActivityDelete(event) {
+                const button = event.submitter;
+                if (button && button.name === 'only_id') {
+                    return confirm('Remove this activity line? This does not undo the action.');
+                }
+                const selectedIds = new Set();
+                document.querySelectorAll('#activityDeleteForm input[name="audit_ids[]"]:checked').forEach(box => selectedIds.add(box.value));
+                const selected = selectedIds.size;
+                if (selected === 0) {
+                    alert('Select at least one activity.');
+                    return false;
+                }
+                return confirm('Remove ' + selected + ' activity line(s)? This does not undo those actions.');
+            }
+            </script>
         </main>
     </div>
 
