@@ -198,6 +198,29 @@ try {
         $data['password_hash'] = $usersModel->hashPassword($selfNew);
     }
 
+    $membersModel = new Members($db);
+    $linkedMemberId = array_key_exists('member_id', $data)
+        ? (int)($data['member_id'] ?? 0)
+        : (int)($target['member_id'] ?? 0);
+    $syncFields = [];
+    if (isset($data['full_name'])) {
+        $syncFields['full_name'] = (string)$data['full_name'];
+    }
+    if (array_key_exists('email', $data)) {
+        $postedEmail = trim((string)$data['email']);
+        $syncFields['email'] = $postedEmail !== '' ? $postedEmail : null;
+    }
+    if (array_key_exists('member_id', $data) && $linkedMemberId > 0) {
+        $syncFields['full_name'] = $syncFields['full_name'] ?? trim((string)$target['full_name']);
+        if (!array_key_exists('email', $syncFields)) {
+            $currentEmail = trim((string)($target['email'] ?? ''));
+            $syncFields['email'] = $currentEmail !== '' ? $currentEmail : null;
+        }
+    }
+    if ($linkedMemberId > 0 && array_key_exists('email', $syncFields)) {
+        $membersModel->assertMemberEmailAvailable($linkedMemberId, $syncFields['email']);
+    }
+
     $updated = $usersModel->update($targetId, $data);
 
     if (!$updated) {
@@ -222,10 +245,18 @@ try {
         if ($newPosition !== null && $effectiveMember > 0) {
             $sync = $db->prepare(
                 'UPDATE members SET member_type = :pos, updated_at = NOW()
-                 WHERE member_id = :mid AND member_type <> :pos'
+                 WHERE member_id = :mid AND member_type <> :kept_pos'
             );
-            $sync->execute([':pos' => $newPosition, ':mid' => $effectiveMember]);
+            $sync->execute([
+                ':pos' => $newPosition,
+                ':kept_pos' => $newPosition,
+                ':mid' => $effectiveMember,
+            ]);
         }
+    }
+
+    if ($linkedMemberId > 0 && $syncFields !== []) {
+        $membersModel->copyIdentityToMember($linkedMemberId, $syncFields);
     }
 
     /* Record what changed, never the password itself. */
