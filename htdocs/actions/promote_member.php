@@ -72,7 +72,16 @@ try {
     }
 
     $currentRank = (string)($member['rank'] ?? 'None');
-    $nextRank = Members::nextRankAfter($currentRank);
+    $onLadder = in_array($currentRank, Members::RANK_ORDER, true);
+    $nextRank = $onLadder ? Members::nextRankAfter($currentRank) : null;
+    if (!$onLadder) {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'message' => 'This rank is not on the belt list. Open Edit Member and choose the correct rank first.',
+        ]);
+        exit;
+    }
     if ($nextRank === null) {
         http_response_code(422);
         echo json_encode([

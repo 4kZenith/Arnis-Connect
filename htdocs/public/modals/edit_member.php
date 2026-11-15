@@ -152,6 +152,19 @@ if (typeof window.syncMemberPaymentUI !== 'function') {
     };
 }
 
+function setEditSelect(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const wanted = value == null ? '' : String(value);
+    if (wanted !== '' && !Array.from(el.options).some(function (option) { return option.value === wanted; })) {
+        const extra = document.createElement('option');
+        extra.value = wanted;
+        extra.textContent = wanted;
+        el.appendChild(extra);
+    }
+    el.value = wanted;
+}
+
 function openEditMemberModal(data) {
     const fieldPerms = window.arnisMemberFieldPermissions || {
         rank: true, status: true, member_type: true, payment_notes: true, player_category: true, full_name: true, dob: true, is_member_self: false
@@ -179,15 +192,16 @@ function openEditMemberModal(data) {
     document.getElementById('edit_m_name').value = data.name || data.full_name || '';
     document.getElementById('edit_m_dob').value = data.dob || '';
     document.getElementById('edit_m_email').value = data.email || '';
-    document.getElementById('edit_m_rank').value = data.rank || 'None';
+    setEditSelect('edit_m_rank', data.rank || 'None');
     document.getElementById('edit_m_address').value = data.address || '';
     document.getElementById('edit_m_contact').value = data.contact_number || data.contact || '';
     document.getElementById('edit_m_height').value = data.height || '';
     document.getElementById('edit_m_weight').value = data.weight || '';
-    document.getElementById('edit_m_member_type').value = data.member_type || 'Player';
-    document.getElementById('edit_m_status').value = data.status || 'Active';
-    document.getElementById('edit_m_player_category').value = data.player_category || 'Public';
-    document.getElementById('edit_m_training_preference').value = data.training_preference || 'Group';
+    const legacyType = { Athlete: 'Player', Trainer: 'Coach' };
+    setEditSelect('edit_m_member_type', legacyType[data.member_type] || data.member_type || 'Player');
+    setEditSelect('edit_m_status', data.status || 'Active');
+    setEditSelect('edit_m_player_category', data.player_category || 'Public');
+    setEditSelect('edit_m_training_preference', data.training_preference || 'Group');
     document.getElementById('edit_m_affiliated_school').value = data.affiliated_school || '';
     document.getElementById('edit_m_guardian_name').value = data.guardian_name || '';
     document.getElementById('edit_m_guardian_contact').value = data.guardian_contact || '';
@@ -229,7 +243,7 @@ document.getElementById('editMemberForm').addEventListener('submit', function(e)
     .then(async response => {
         const data = await response.json();
         if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to update member');
+            throw new Error(data.message || data.error || 'Failed to update member');
         }
         alert(data.message || 'Member updated successfully.');
         closeEditMemberModal();
