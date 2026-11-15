@@ -425,6 +425,15 @@ $csrfToken = arnisCsrfToken();
 <!-- RESPONSIVE: Scale padding -->
 <main id="page" class="flex-1 p-4 sm:p-6 lg:p-8 h-screen overflow-y-auto opacity-0 translate-x-8 transition-all duration-500 ease-out">
     <?php include_once __DIR__ . '/../includes/header.php'; ?>
+    <?php
+    $rankPromoFlash = $_SESSION['rank_promotion_flash'] ?? null;
+    unset($_SESSION['rank_promotion_flash']);
+    if (is_array($rankPromoFlash) && !empty($rankPromoFlash['message'])):
+    ?>
+    <div class="<?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+        <i class="fas <?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$rankPromoFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+    </div>
+    <?php endif; ?>
 
     <!-- RESPONSIVE: Profile Header - Horizontal alignment -->
 <div class="flex flex-col md:flex-row md:items-center gap-6 sm:gap-8 lg:gap-10 mb-6 sm:mb-8">
@@ -670,7 +679,82 @@ $csrfToken = arnisCsrfToken();
             <div class="h-2 rounded-full bg-white/5 overflow-hidden">
                 <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-yellow-400 transition-all" style="width: <?= (int)$beltProgressPct ?>%"></div>
             </div>
-            <p class="text-[9px] sm:text-[10px] text-gray-600 mt-2 italic">Guideline only — your coach decides every promotion based on skill, attendance and attitude.</p>
+            <p class="text-[9px] sm:text-[10px] text-gray-600 mt-2 italic"><?= $isOwnProfile ? 'Guideline only. Request the next rank with a note or a certificate. A coach approves or declines it.' : 'Guideline only. A member can request this rank, and you approve or decline it.' ?></p>
+            <?php
+            $rankRequest = null;
+            try {
+                require_once __DIR__ . '/../classes/RankPromotions.php';
+                $rankRequest = (new RankPromotions($db))->latestForMember($memberId);
+            } catch (Throwable $e) {
+                error_log('rank request load skipped: ' . $e->getMessage());
+            }
+            $rankRequestStatus = (string)($rankRequest['status'] ?? '');
+            ?>
+            <?php if ($isOwnProfile): ?>
+                <?php if ($rankRequestStatus === 'Pending'): ?>
+                    <div class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100">
+                        <p class="font-bold">Waiting for a coach to review your request for <?= htmlspecialchars((string)$rankRequest['requested_rank'], ENT_QUOTES, 'UTF-8') ?>.</p>
+                        <?php if (!empty($rankRequest['message'])): ?>
+                            <p class="mt-1 text-amber-50/80"><?= htmlspecialchars((string)$rankRequest['message'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($rankRequest['proof_path'])): ?>
+                            <a href="../actions/view_rank_promotion_proof.php?id=<?= (int)$rankRequest['request_id'] ?>" target="_blank" rel="noopener" class="inline-flex mt-2 text-[10px] font-black uppercase tracking-widest text-white">View certificate</a>
+                        <?php endif; ?>
+                        <form method="POST" action="../actions/process_rank_promotion.php" class="mt-3" onsubmit="return confirm('Cancel this promotion request?');">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="op" value="cancel">
+                            <input type="hidden" name="member_id" value="<?= (int)$memberId ?>">
+                            <input type="hidden" name="request_id" value="<?= (int)$rankRequest['request_id'] ?>">
+                            <button type="submit" class="px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Cancel request</button>
+                        </form>
+                    </div>
+                <?php else: ?>
+                    <?php if ($rankRequestStatus === 'Declined' && !empty($rankRequest['review_note'])): ?>
+                        <p class="mt-3 text-xs text-red-300">Last request was declined: <?= htmlspecialchars((string)$rankRequest['review_note'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php endif; ?>
+                    <form method="POST" action="../actions/process_rank_promotion.php" enctype="multipart/form-data" class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="op" value="request">
+                        <input type="hidden" name="member_id" value="<?= (int)$memberId ?>">
+                        <label class="block sm:col-span-2">
+                            <span class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-1">Message to your coach</span>
+                            <textarea name="message" maxlength="500" rows="2" placeholder="What you practiced, the exam, or why you are ready" class="w-full bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500/50"></textarea>
+                        </label>
+                        <label class="block sm:col-span-2">
+                            <span class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-1">Certificate (optional JPG, PNG, WEBP, or PDF, up to 5 MB)</span>
+                            <input type="file" name="proof" accept="image/jpeg,image/png,image/webp,application/pdf" class="block w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-purple-600 file:text-white">
+                        </label>
+                        <div>
+                            <button type="submit" class="px-4 py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-black text-[10px] font-black uppercase tracking-widest">Request <?= htmlspecialchars($nextRankName, ENT_QUOTES, 'UTF-8') ?></button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            <?php elseif ($canPromote && $rankRequestStatus === 'Pending'): ?>
+                <div class="mt-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-xs text-yellow-50">
+                    <p class="font-bold"><?= htmlspecialchars((string)($member['full_name'] ?? 'This member'), ENT_QUOTES, 'UTF-8') ?> requested <?= htmlspecialchars((string)$rankRequest['requested_rank'], ENT_QUOTES, 'UTF-8') ?>.</p>
+                    <?php if (!empty($rankRequest['message'])): ?>
+                        <p class="mt-1"><?= htmlspecialchars((string)$rankRequest['message'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($rankRequest['proof_path'])): ?>
+                        <a href="../actions/view_rank_promotion_proof.php?id=<?= (int)$rankRequest['request_id'] ?>" target="_blank" rel="noopener" class="inline-flex mt-2 px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">View certificate</a>
+                    <?php endif; ?>
+                    <div class="mt-3 flex flex-col sm:flex-row gap-2">
+                        <form method="POST" action="../actions/process_rank_promotion.php" onsubmit="return confirm('Approve this promotion?');">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="op" value="approve">
+                            <input type="hidden" name="request_id" value="<?= (int)$rankRequest['request_id'] ?>">
+                            <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black uppercase tracking-widest">Approve</button>
+                        </form>
+                        <form method="POST" action="../actions/process_rank_promotion.php" class="flex flex-1 flex-col sm:flex-row gap-2">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="op" value="decline">
+                            <input type="hidden" name="request_id" value="<?= (int)$rankRequest['request_id'] ?>">
+                            <input type="text" name="review_note" required maxlength="255" placeholder="Why this was declined" class="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white">
+                            <button type="submit" class="px-4 py-2.5 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Decline</button>
+                        </form>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
         <?php else: ?>
         <div class="card-bg rounded-2xl p-4 sm:p-6 mb-3 border border-yellow-500/30 text-center">

@@ -14,6 +14,7 @@ require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
 require_once __DIR__ . '/../classes/Users.php';
 require_once __DIR__ . '/../classes/PrivateTrainings.php';
+require_once __DIR__ . '/../classes/RankPromotions.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -76,6 +77,18 @@ try {
         exit;
     }
 
+    $proofFiles = [];
+    try {
+        $proofStmt = $db->prepare(
+            "SELECT proof_path FROM rank_promotion_requests
+             WHERE member_id = :id AND proof_path IS NOT NULL AND proof_path <> ''"
+        );
+        $proofStmt->execute([':id' => $memberId]);
+        $proofFiles = $proofStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    } catch (Throwable $e) {
+        $proofFiles = [];
+    }
+
     $receiptFiles = [];
     try {
         $pathStmt = $db->prepare(
@@ -131,6 +144,9 @@ try {
 
     foreach ($receiptFiles as $receiptPath) {
         PrivateTrainings::unlinkReceipt((string)$receiptPath);
+    }
+    foreach ($proofFiles as $proofPath) {
+        RankPromotions::unlinkProof((string)$proofPath);
     }
 
     AuditLog::record(
