@@ -1,0 +1,7 @@
+# Enrollment photos are opened through actions/view_face_photo.php.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>

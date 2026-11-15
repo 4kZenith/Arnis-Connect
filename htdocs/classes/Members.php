@@ -513,7 +513,6 @@ class Members
                 'status', 'height', 'weight', 'member_type', 'player_category',
                 'training_preference', 'affiliated_school', 'guardian_name',
                 'guardian_contact', 'payment_notes', 'profile_img',
-                'face_descriptor',
             ];
 
             foreach ($fieldsToCheck as $field) {

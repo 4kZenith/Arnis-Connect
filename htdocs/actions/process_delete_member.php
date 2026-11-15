@@ -15,6 +15,7 @@ require_once __DIR__ . '/../classes/AuditLog.php';
 require_once __DIR__ . '/../classes/Users.php';
 require_once __DIR__ . '/../classes/PrivateTrainings.php';
 require_once __DIR__ . '/../classes/RankPromotions.php';
+require_once __DIR__ . '/../classes/FaceEnrollments.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -89,6 +90,31 @@ try {
         $proofFiles = [];
     }
 
+    $faceFiles = [];
+    try {
+        FaceEnrollments::ensureSchema($db);
+        $faceStmt = $db->prepare(
+            "SELECT face_photo FROM members WHERE member_id = :id AND face_photo IS NOT NULL AND face_photo <> ''"
+        );
+        $faceStmt->execute([':id' => $memberId]);
+        $officialFace = $faceStmt->fetchColumn();
+        if (is_string($officialFace) && $officialFace !== '') {
+            $faceFiles[] = $officialFace;
+        }
+        $requestStmt = $db->prepare(
+            "SELECT photo_path FROM face_reenroll_requests
+             WHERE member_id = :id AND photo_path IS NOT NULL AND photo_path <> ''"
+        );
+        $requestStmt->execute([':id' => $memberId]);
+        foreach ($requestStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $requestPhoto) {
+            if (is_string($requestPhoto) && $requestPhoto !== '') {
+                $faceFiles[] = $requestPhoto;
+            }
+        }
+    } catch (Throwable $e) {
+        $faceFiles = [];
+    }
+
     $receiptFiles = [];
     try {
         $pathStmt = $db->prepare(
@@ -123,6 +149,7 @@ try {
         'achievements',
         'rank_history',
         'private_training_requests',
+        'face_reenroll_requests',
     ] as $table) {
         $exists = $db->prepare(
             'SELECT COUNT(*) FROM information_schema.tables
@@ -147,6 +174,9 @@ try {
     }
     foreach ($proofFiles as $proofPath) {
         RankPromotions::unlinkProof((string)$proofPath);
+    }
+    foreach ($faceFiles as $facePath) {
+        FaceEnrollments::unlinkStored((string)$facePath);
     }
 
     AuditLog::record(

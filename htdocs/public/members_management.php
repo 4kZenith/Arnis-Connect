@@ -43,6 +43,8 @@ $stats = ['total' => 0, 'active' => 0, 'public_count' => 0, 'private_count' => 0
 $pendingApprovals = [];
 $pendingApprovalCount = 0;
 $promotionRequests = [];
+$faceChangeRequests = [];
+$canReviewFaces = permissionValue('members', 'write') === true;
 $membersError = null;
 
 try {
@@ -90,6 +92,10 @@ $memberFieldPermissions = [
                 $promotionRequests[] = $promoRow;
             }
         }
+    }
+    if ($canReviewFaces) {
+        require_once __DIR__ . '/../classes/FaceEnrollments.php';
+        $faceChangeRequests = (new FaceEnrollments($db))->listPending();
     }
 
     $paginatedMembers = $result['members'];
@@ -166,6 +172,15 @@ function mmEditOnclick(array $member): string
             $rankPromoFlash = $_SESSION['rank_promotion_flash'] ?? null;
             unset($_SESSION['rank_promotion_flash']);
             ?>
+            <?php
+            $faceReenrollFlash = $_SESSION['face_reenroll_flash'] ?? null;
+            unset($_SESSION['face_reenroll_flash']);
+            ?>
+            <?php if (is_array($faceReenrollFlash) && !empty($faceReenrollFlash['message'])): ?>
+            <div class="<?= ($faceReenrollFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
+                <i class="fas <?= ($faceReenrollFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$faceReenrollFlash['message'], ENT_QUOTES, 'UTF-8') ?>
+            </div>
+            <?php endif; ?>
             <?php if (is_array($rankPromoFlash) && !empty($rankPromoFlash['message'])): ?>
             <div class="<?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400' ?> border rounded-2xl px-4 py-3 mb-6 text-xs sm:text-sm">
                 <i class="fas <?= ($rankPromoFlash['type'] ?? '') === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle' ?> mr-2"></i><?= htmlspecialchars((string)$rankPromoFlash['message'], ENT_QUOTES, 'UTF-8') ?>
@@ -236,6 +251,57 @@ function mmEditOnclick(array $member): string
                                     <button type="submit" class="px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Decline</button>
                                 </form>
                             </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+            <?php endif; ?>
+
+            <?php if ($canReviewFaces && $faceChangeRequests !== []): ?>
+            <section class="card-bg rounded-2xl p-4 sm:p-6 mb-6">
+                <h2 class="font-bold text-xs sm:text-sm tracking-widest uppercase flex items-center gap-2 mb-2">
+                    <i class="fas fa-user-secret text-purple-300"></i> Face change requests
+                    <span class="text-purple-300"><?= count($faceChangeRequests) ?></span>
+                </h2>
+                <p class="text-[11px] text-gray-400 mb-4">Approving replaces the face used for attendance. Declining leaves the current face in place.</p>
+                <div class="space-y-4">
+                    <?php foreach ($faceChangeRequests as $faceRequest): ?>
+                    <div class="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                        <a href="member_profile.php?id=<?= (int)$faceRequest['member_id'] ?>" class="font-bold text-white hover:text-purple-300 text-sm"><?= htmlspecialchars((string)$faceRequest['member_name'], ENT_QUOTES, 'UTF-8') ?></a>
+                        <div class="flex flex-wrap gap-4 my-3">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-2">Face on file</p>
+                                <?php if (!empty($faceRequest['face_photo'])): ?>
+                                <img src="../actions/view_face_photo.php?member_id=<?= (int)$faceRequest['member_id'] ?>" alt="Face currently used for attendance" class="w-32 h-32 rounded-2xl object-cover border border-white/10">
+                                <?php elseif (!empty($faceRequest['profile_img'])): ?>
+                                <img src="<?= htmlspecialchars((string)$faceRequest['profile_img'], ENT_QUOTES, 'UTF-8') ?>" alt="Profile photo" class="w-32 h-32 rounded-2xl object-cover border border-white/10">
+                                <p class="text-[10px] text-gray-500 mt-1 max-w-[8rem]">Profile picture. No enrollment photo was saved yet.</p>
+                                <?php else: ?>
+                                <p class="text-[10px] text-gray-500 max-w-[8rem]">No earlier photo is on file.</p>
+                                <?php endif; ?>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-2">New photo</p>
+                                <img src="../actions/view_face_photo.php?request_id=<?= (int)$faceRequest['request_id'] ?>" alt="Requested face" class="w-32 h-32 rounded-2xl object-cover border border-white/10">
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <form method="POST" action="../actions/process_face_reenroll.php" onsubmit="return confirm('Approve this face? Attendance will use the new photo.');">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="op" value="approve">
+                                <input type="hidden" name="return_to" value="members">
+                                <input type="hidden" name="request_id" value="<?= (int)$faceRequest['request_id'] ?>">
+                                <button type="submit" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black uppercase tracking-widest">Approve new face</button>
+                            </form>
+                            <form method="POST" action="../actions/process_face_reenroll.php" class="flex flex-1 gap-2">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(arnisCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="op" value="decline">
+                                <input type="hidden" name="return_to" value="members">
+                                <input type="hidden" name="request_id" value="<?= (int)$faceRequest['request_id'] ?>">
+                                <input type="text" name="review_note" required maxlength="255" placeholder="Reason" class="flex-1 bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white">
+                                <button type="submit" class="px-3 py-2 rounded-xl bg-white/10 text-[10px] font-black uppercase tracking-widest">Decline</button>
+                            </form>
                         </div>
                     </div>
                     <?php endforeach; ?>
