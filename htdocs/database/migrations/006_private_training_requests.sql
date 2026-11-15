@@ -1,6 +1,7 @@
 -- Private training requests (public/private_trainings.php).
--- classes/PrivateTrainings.php creates this table automatically on first use;
--- running this file by hand is optional.
+-- classes/PrivateTrainings.php creates this table automatically on first use
+-- and adds the receipt columns on older databases. Running this file by hand
+-- is optional. Do not import it into a database that already has data.
 
 CREATE TABLE IF NOT EXISTS `private_training_requests` (
   `request_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -22,6 +23,11 @@ CREATE TABLE IF NOT EXISTS `private_training_requests` (
   `payment_status` enum('Unpaid','Paid') NOT NULL DEFAULT 'Unpaid',
   `paid_at` datetime DEFAULT NULL,
   `fund_id` int(11) DEFAULT NULL,
+  `receipt_path` varchar(255) DEFAULT NULL,
+  `receipt_method` varchar(20) DEFAULT NULL,
+  `receipt_submitted_at` datetime DEFAULT NULL,
+  `receipt_note` varchar(255) DEFAULT NULL,
+  `receipt_status` enum('None','Pending','Approved','Rejected') NOT NULL DEFAULT 'None',
   `reviewed_by` int(11) DEFAULT NULL,
   `reviewed_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),

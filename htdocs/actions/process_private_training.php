@@ -32,6 +32,50 @@ function ptPeso(float $amount): string
     return 'PHP ' . number_format($amount, 2);
 }
 
+/** Save a receipt photo and return its path relative to htdocs. */
+function ptStoreReceipt(int $requestId): string
+{
+    if (!isset($_FILES['receipt']) || !is_array($_FILES['receipt'])) {
+        throw new RuntimeException('Choose a photo of your receipt.');
+    }
+    $file = $_FILES['receipt'];
+    $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+        throw new RuntimeException('That photo is too large. Use a picture under 5 MB.');
+    }
+    if ($error !== UPLOAD_ERR_OK || !is_string($file['tmp_name'] ?? null) || $file['tmp_name'] === '') {
+        throw new RuntimeException('Choose a photo of your receipt.');
+    }
+    if ((int)$file['size'] <= 0 || (int)$file['size'] > 5 * 1024 * 1024) {
+        throw new RuntimeException('That photo is too large. Use a picture under 5 MB.');
+    }
+
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $finfo ? finfo_file($finfo, $file['tmp_name']) : false;
+    if ($finfo) {
+        finfo_close($finfo);
+    }
+    $exts = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+    if (!is_string($mime) || !isset($exts[$mime])) {
+        throw new RuntimeException('Upload a JPG, PNG, or WEBP photo of the receipt.');
+    }
+    $info = @getimagesize($file['tmp_name']);
+    if ($info === false || (int)($info[0] ?? 0) < 1 || (int)($info[1] ?? 0) < 1) {
+        throw new RuntimeException('That file is not a readable photo.');
+    }
+
+    $dir = PrivateTrainings::receiptDirectory();
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new RuntimeException('The receipt could not be saved. Please try again.');
+    }
+    $filename = 'receipt_' . $requestId . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $exts[$mime];
+    $dest = $dir . DIRECTORY_SEPARATOR . $filename;
+    if (!move_uploaded_file($file['tmp_name'], $dest)) {
+        throw new RuntimeException('The receipt could not be saved. Please try again.');
+    }
+    return 'uploads/receipts/' . $filename;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     exit('Invalid request method.');
@@ -215,6 +259,48 @@ try {
             $fundId = $pt->markPaid($request, $userId);
             AuditLog::record($db, 'create', 'funds', $fundId, 'Recorded private training fee ' . ptPeso((float)$request['fee_amount']) . " from {$memberName}");
             ptRedirect('success', 'Payment recorded and added to Funds as income.');
+
+        case 'submit_receipt':
+            if (!$isOwner) {
+                ptRedirect('error', 'Only the member for this session can submit a receipt.');
+            }
+            $method = trim((string)($_POST['receipt_method'] ?? ''));
+            $relative = ptStoreReceipt($requestId);
+            try {
+                $old = $pt->saveReceipt($requestId, $selfMemberId, $method, $relative);
+            } catch (Throwable $e) {
+                PrivateTrainings::unlinkReceipt($relative);
+                throw $e;
+            }
+            if ($old !== null) {
+                PrivateTrainings::unlinkReceipt($old);
+            }
+            AuditLog::record($db, 'create', 'private_trainings', $requestId, "{$memberName} submitted a {$method} receipt for private training");
+            ptRedirect('success', 'Receipt sent. It will be marked paid after the treasurer approves the photo.');
+
+        case 'approve_receipt':
+            if (!$canRecordPayment) {
+                ptRedirect('error', 'Only the treasurer or administrator can approve a receipt.');
+            }
+            if (($request['receipt_status'] ?? '') !== 'Pending') {
+                ptRedirect('error', 'There is no receipt waiting for approval.');
+            }
+            $fundId = $pt->markPaid($request, $userId);
+            AuditLog::record($db, 'approve', 'private_trainings', $requestId, "Approved {$request['receipt_method']} receipt and recorded " . ptPeso((float)$request['fee_amount']) . " from {$memberName}");
+            ptNotify($db, $memberEmail, $memberName, 'Private training payment approved',
+                'Your payment receipt was approved. The private session is paid and confirmed.');
+            ptRedirect('success', 'Receipt approved. The private session is paid and recorded in Funds.');
+
+        case 'reject_receipt':
+            if (!$canRecordPayment) {
+                ptRedirect('error', 'Only the treasurer or administrator can reject a receipt.');
+            }
+            $note = mb_substr(trim((string)($_POST['receipt_note'] ?? '')), 0, 255);
+            $pt->rejectReceipt($requestId, $note);
+            AuditLog::record($db, 'reject', 'private_trainings', $requestId, "Rejected payment receipt from {$memberName}: {$note}");
+            ptNotify($db, $memberEmail, $memberName, 'Private training receipt needs another photo',
+                "Your payment receipt was not accepted. Reason: {$note}");
+            ptRedirect('success', 'Receipt sent back to the member.');
     }
 } catch (Throwable $e) {
     error_log('process_private_training error: ' . $e->getMessage());

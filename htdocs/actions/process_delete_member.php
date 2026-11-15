@@ -13,6 +13,7 @@ require_once __DIR__ . '/../includes/authorize.php';
 require_once __DIR__ . '/../config/Database.php';
 require_once __DIR__ . '/../classes/AuditLog.php';
 require_once __DIR__ . '/../classes/Users.php';
+require_once __DIR__ . '/../classes/PrivateTrainings.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -75,6 +76,18 @@ try {
         exit;
     }
 
+    $receiptFiles = [];
+    try {
+        $pathStmt = $db->prepare(
+            "SELECT receipt_path FROM private_training_requests
+             WHERE member_id = :id AND receipt_path IS NOT NULL AND receipt_path <> ''"
+        );
+        $pathStmt->execute([':id' => $memberId]);
+        $receiptFiles = $pathStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    } catch (Throwable $e) {
+        $receiptFiles = [];
+    }
+
     $db->beginTransaction();
 
     $db->prepare('UPDATE trainings SET coach_id = NULL WHERE coach_id = :id')->execute([':id' => $memberId]);
@@ -115,6 +128,10 @@ try {
 
     $db->prepare('DELETE FROM members WHERE member_id = :id')->execute([':id' => $memberId]);
     $db->commit();
+
+    foreach ($receiptFiles as $receiptPath) {
+        PrivateTrainings::unlinkReceipt((string)$receiptPath);
+    }
 
     AuditLog::record(
         $db,

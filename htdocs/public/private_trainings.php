@@ -150,6 +150,7 @@ $inputClass = 'w-full bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2
                 <i class="fas fa-user-ninja mr-2 text-purple-400"></i>
                 Group trainings are free. Private one-on-one sessions cost the standard fee of
                 <strong class="text-white"><?= ptMoney($standardFee) ?></strong> per session unless the coach offers a different amount, which the member must accept before the session is booked.
+                After the session is booked, the member sends a photo of the GCash, Maya, bank, or other receipt. The treasurer approves that photo and the session is marked paid.
             </div>
 
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
@@ -264,7 +265,15 @@ $inputClass = 'w-full bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2
                                 </form>
                             <?php endif; ?>
 
-                            <?php if ($canRecordPayment && $st === 'Confirmed' && $r['payment_status'] === 'Unpaid' && (float)$r['fee_amount'] > 0): ?>
+                            <?php
+                                $receiptStatus = (string)($r['receipt_status'] ?? 'None');
+                                $awaitingReceiptReview = $st === 'Confirmed' && $r['payment_status'] === 'Unpaid' && $receiptStatus === 'Pending';
+                            ?>
+                            <?php if ($awaitingReceiptReview): ?>
+                                <span class="px-3 py-2 rounded-xl bg-amber-500/10 text-amber-300 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-receipt mr-1"></i>Receipt to review</span>
+                            <?php endif; ?>
+
+                            <?php if ($canRecordPayment && $st === 'Confirmed' && $r['payment_status'] === 'Unpaid' && (float)$r['fee_amount'] > 0 && !$awaitingReceiptReview): ?>
                                 <form method="POST" action="../actions/process_private_training.php" onsubmit="return confirm('Record <?= ptE(ptMoney($r['fee_amount'])) ?> as received? This adds a Funds income entry.');">
                                     <input type="hidden" name="csrf_token" value="<?= ptE($csrf) ?>">
                                     <input type="hidden" name="request_id" value="<?= $rid ?>">
@@ -281,6 +290,68 @@ $inputClass = 'w-full bg-gray-900/60 border border-gray-700 rounded-xl px-3 py-2
                             <?php endif; ?>
                         </div>
                     </div>
+
+                    <?php if ($isOwner && $st === 'Confirmed' && $r['payment_status'] === 'Unpaid' && (float)$r['fee_amount'] > 0): ?>
+                        <?php $receiptStatus = (string)($r['receipt_status'] ?? 'None'); ?>
+                        <div class="mt-4 border-t border-gray-800 pt-4">
+                            <?php if ($receiptStatus === 'Pending'): ?>
+                                <p class="text-xs text-amber-300"><i class="fas fa-hourglass-half mr-1"></i>Your <?= ptE($r['receipt_method'] ?? 'payment') ?> receipt is waiting for approval. The session is marked paid once it is approved.</p>
+                                <a href="../actions/view_payment_receipt.php?id=<?= $rid ?>" target="_blank" rel="noopener" class="inline-flex mt-2 text-[10px] font-black uppercase tracking-widest text-purple-300 hover:text-white">View submitted photo</a>
+                            <?php else: ?>
+                                <?php if ($receiptStatus === 'Rejected' && !empty($r['receipt_note'])): ?>
+                                    <p class="text-xs text-red-300 mb-3"><i class="fas fa-exclamation-circle mr-1"></i>Receipt not accepted: <?= ptE($r['receipt_note']) ?> Send a clearer photo.</p>
+                                <?php else: ?>
+                                    <p class="text-xs text-gray-400 mb-3">Pay <?= ptMoney($r['fee_amount']) ?> by GCash, Maya, bank, or any transfer, then upload a photo of the receipt.</p>
+                                <?php endif; ?>
+                                <form method="POST" action="../actions/process_private_training.php" enctype="multipart/form-data" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <input type="hidden" name="csrf_token" value="<?= ptE($csrf) ?>">
+                                    <input type="hidden" name="op" value="submit_receipt">
+                                    <input type="hidden" name="request_id" value="<?= $rid ?>">
+                                    <label class="block">
+                                        <span class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-1">How you paid</span>
+                                        <select name="receipt_method" required class="<?= $inputClass ?>">
+                                            <?php foreach (PrivateTrainings::RECEIPT_METHODS as $method): ?>
+                                                <option value="<?= ptE($method) ?>"><?= ptE($method) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </label>
+                                    <label class="block sm:col-span-2">
+                                        <span class="block text-[10px] uppercase tracking-[0.16em] font-black text-gray-500 mb-1">Receipt photo (JPG, PNG, or WEBP, up to 5 MB)</span>
+                                        <input type="file" name="receipt" accept="image/jpeg,image/png,image/webp" required class="block w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:uppercase file:tracking-widest file:bg-purple-600 file:text-white">
+                                    </label>
+                                    <div class="sm:col-span-3">
+                                        <button type="submit" class="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-upload mr-1"></i>Submit receipt</button>
+                                    </div>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($canRecordPayment && $awaitingReceiptReview): ?>
+                        <div class="mt-4 border-t border-gray-800 pt-4">
+                            <p class="text-xs text-gray-300 mb-3"><?= ptE($r['member_name']) ?> sent a <?= ptE($r['receipt_method'] ?? 'payment') ?> receipt for <?= ptMoney($r['fee_amount']) ?>.</p>
+                            <a href="../actions/view_payment_receipt.php?id=<?= $rid ?>" target="_blank" rel="noopener" class="inline-flex mb-3 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-image mr-1"></i>View receipt photo</a>
+                            <div class="flex flex-col lg:flex-row gap-3">
+                                <form method="POST" action="../actions/process_private_training.php" onsubmit="return confirm('Approve this receipt and mark <?= ptE(ptMoney($r['fee_amount'])) ?> as paid?');">
+                                    <input type="hidden" name="csrf_token" value="<?= ptE($csrf) ?>">
+                                    <input type="hidden" name="request_id" value="<?= $rid ?>">
+                                    <button name="op" value="approve_receipt" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-check mr-1"></i>Approve and mark paid</button>
+                                </form>
+                                <form method="POST" action="../actions/process_private_training.php" class="flex flex-1 flex-col sm:flex-row gap-2">
+                                    <input type="hidden" name="csrf_token" value="<?= ptE($csrf) ?>">
+                                    <input type="hidden" name="request_id" value="<?= $rid ?>">
+                                    <input type="text" name="receipt_note" required maxlength="255" placeholder="Why the photo was not accepted" class="<?= $inputClass ?>">
+                                    <button name="op" value="reject_receipt" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-[10px] font-black uppercase tracking-widest">Send back</button>
+                                </form>
+                            </div>
+                        </div>
+                    <?php elseif (!$isOwner && $st === 'Confirmed' && $receiptStatus === 'Pending'): ?>
+                        <p class="mt-3 text-xs text-amber-300"><i class="fas fa-receipt mr-1"></i><?= ptE($r['receipt_method'] ?? 'Payment') ?> receipt is waiting for the treasurer.</p>
+                    <?php endif; ?>
+
+                    <?php if ($r['payment_status'] === 'Paid' && !empty($r['receipt_path']) && ($isOwner || $canRecordPayment)): ?>
+                        <a href="../actions/view_payment_receipt.php?id=<?= $rid ?>" target="_blank" rel="noopener" class="inline-flex mt-3 text-[10px] font-black uppercase tracking-widest text-emerald-300 hover:text-white"><i class="fas fa-receipt mr-1"></i>View payment receipt</a>
+                    <?php endif; ?>
 
                     <?php if ($canReview && $st === 'Pending'): ?>
                     <details class="mt-4 border-t border-gray-800 pt-4">

@@ -12,12 +12,15 @@ require_once __DIR__ . '/Settings.php';
  *   Confirmed        a Private training + roster row exist; check-in works as usual
  *   Rejected / Declined / Cancelled  closed without a session
  *
- * Payment is tracked per request and, when marked paid, recorded as Funds income.
+ * Payment is tracked per request. The member can upload a receipt photo
+ * (GCash, Maya, bank, or any other transfer). Approving that receipt, or
+ * marking the fee paid by hand, records Funds income.
  */
 class PrivateTrainings
 {
     public const OPEN_STATUSES = ['Pending', 'Awaiting Member'];
     public const MAX_OPEN_PER_MEMBER = 3;
+    public const RECEIPT_METHODS = ['GCash', 'Maya', 'Bank', 'Other'];
 
     private PDO $db;
     private static bool $schemaReady = false;
@@ -54,6 +57,11 @@ class PrivateTrainings
                `payment_status` enum('Unpaid','Paid') NOT NULL DEFAULT 'Unpaid',
                `paid_at` datetime DEFAULT NULL,
                `fund_id` int(11) DEFAULT NULL,
+               `receipt_path` varchar(255) DEFAULT NULL,
+               `receipt_method` varchar(20) DEFAULT NULL,
+               `receipt_submitted_at` datetime DEFAULT NULL,
+               `receipt_note` varchar(255) DEFAULT NULL,
+               `receipt_status` enum('None','Pending','Approved','Rejected') NOT NULL DEFAULT 'None',
                `reviewed_by` int(11) DEFAULT NULL,
                `reviewed_at` datetime DEFAULT NULL,
                `created_at` datetime NOT NULL DEFAULT current_timestamp(),
@@ -64,7 +72,78 @@ class PrivateTrainings
                CONSTRAINT `fk_ptr_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`member_id`) ON DELETE CASCADE
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
         );
+        self::ensureReceiptColumns($db);
         self::$schemaReady = true;
+    }
+
+    /** Adds receipt columns on databases created before online payment. */
+    private static function ensureReceiptColumns(PDO $db): void
+    {
+        try {
+            $db->query(
+                'SELECT receipt_path, receipt_method, receipt_submitted_at, receipt_note, receipt_status
+                 FROM private_training_requests LIMIT 0'
+            );
+            return;
+        } catch (PDOException $e) {
+            // The table exists from an older install and is missing these columns.
+        }
+
+        $adds = [
+            'ADD COLUMN `receipt_path` varchar(255) DEFAULT NULL',
+            'ADD COLUMN `receipt_method` varchar(20) DEFAULT NULL',
+            'ADD COLUMN `receipt_submitted_at` datetime DEFAULT NULL',
+            'ADD COLUMN `receipt_note` varchar(255) DEFAULT NULL',
+            "ADD COLUMN `receipt_status` enum('None','Pending','Approved','Rejected') NOT NULL DEFAULT 'None'",
+        ];
+        foreach ($adds as $add) {
+            try {
+                $db->exec('ALTER TABLE `private_training_requests` ' . $add);
+            } catch (PDOException $e) {
+                if (!str_contains($e->getMessage(), 'Duplicate column')) {
+                    throw $e;
+                }
+            }
+        }
+    }
+
+    public static function receiptDirectory(): string
+    {
+        return dirname(__DIR__) . '/uploads/receipts';
+    }
+
+    /** Resolve a stored receipt path, or null when it is missing or outside the receipts folder. */
+    public static function receiptFile(?string $stored): ?string
+    {
+        $stored = trim((string)$stored);
+        if ($stored === '') {
+            return null;
+        }
+        $root = realpath(self::receiptDirectory());
+        if ($root === false || !is_dir($root)) {
+            return null;
+        }
+        $normalized = str_replace('\\', '/', $stored);
+        $normalized = preg_replace('#^(?:\.\./)+#', '', $normalized) ?? $normalized;
+        $normalized = preg_replace('#^uploads/receipts/#i', '', $normalized) ?? $normalized;
+        $normalized = ltrim($normalized, '/');
+        if ($normalized === '' || str_contains($normalized, '..')) {
+            return null;
+        }
+        $candidate = realpath($root . DIRECTORY_SEPARATOR . $normalized);
+        $rootPrefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if ($candidate === false || !str_starts_with($candidate, $rootPrefix) || !is_file($candidate)) {
+            return null;
+        }
+        return $candidate;
+    }
+
+    public static function unlinkReceipt(?string $stored): void
+    {
+        $file = self::receiptFile($stored);
+        if ($file !== null) {
+            @unlink($file);
+        }
     }
 
     public function standardFee(): float
@@ -320,20 +399,26 @@ class PrivateTrainings
     {
         $this->db->beginTransaction();
         try {
+            $method = trim((string)($request['receipt_method'] ?? ''));
+            $notes = 'Private training request #' . $request['request_id'] . ' on ' . $request['session_date'];
+            if ($method !== '') {
+                $notes .= ' via ' . $method;
+            }
             $this->db->prepare(
                 "INSERT INTO funds (transaction_type, source_or_purpose, amount, transaction_date, notes, recorded_by)
                  VALUES ('Income', :src, :amt, CURDATE(), :notes, :u)"
             )->execute([
                 ':src' => mb_substr('Private training fee - ' . $request['member_name'], 0, 255),
                 ':amt' => (float)$request['fee_amount'],
-                ':notes' => mb_substr('Private training request #' . $request['request_id'] . ' on ' . $request['session_date'], 0, 255),
+                ':notes' => mb_substr($notes, 0, 255),
                 ':u' => $actorUserId,
             ]);
             $fundId = (int)$this->db->lastInsertId();
 
             $upd = $this->db->prepare(
                 "UPDATE private_training_requests
-                 SET payment_status = 'Paid', paid_at = NOW(), fund_id = :f
+                 SET payment_status = 'Paid', paid_at = NOW(), fund_id = :f,
+                     receipt_status = CASE WHEN receipt_status = 'Pending' THEN 'Approved' ELSE receipt_status END
                  WHERE request_id = :id AND status = 'Confirmed' AND payment_status = 'Unpaid'"
             );
             $upd->execute([':f' => $fundId, ':id' => (int)$request['request_id']]);
@@ -347,6 +432,61 @@ class PrivateTrainings
                 $this->db->rollBack();
             }
             throw $e;
+        }
+    }
+
+    /** Member uploaded a payment photo for a confirmed, unpaid session. */
+    public function saveReceipt(int $requestId, int $memberId, string $method, string $relativePath): ?string
+    {
+        if (!in_array($method, self::RECEIPT_METHODS, true)) {
+            throw new RuntimeException('Choose how you paid: GCash, Maya, bank, or other.');
+        }
+        $previous = $this->db->prepare(
+            "SELECT receipt_path FROM private_training_requests
+             WHERE request_id = :id AND member_id = :mid AND status = 'Confirmed'
+               AND payment_status = 'Unpaid' AND receipt_status <> 'Pending'
+               AND fee_amount > 0"
+        );
+        $previous->execute([':id' => $requestId, ':mid' => $memberId]);
+        $old = $previous->fetchColumn();
+        if ($old === false) {
+            throw new RuntimeException('This session is not waiting for a receipt.');
+        }
+
+        $upd = $this->db->prepare(
+            "UPDATE private_training_requests
+             SET receipt_path = :p, receipt_method = :m, receipt_submitted_at = NOW(),
+                 receipt_status = 'Pending', receipt_note = NULL
+             WHERE request_id = :id AND member_id = :mid AND status = 'Confirmed'
+               AND payment_status = 'Unpaid' AND receipt_status <> 'Pending'"
+        );
+        $upd->execute([
+            ':p' => $relativePath,
+            ':m' => $method,
+            ':id' => $requestId,
+            ':mid' => $memberId,
+        ]);
+        if ($upd->rowCount() !== 1) {
+            throw new RuntimeException('This session is not waiting for a receipt.');
+        }
+        return $old !== null && $old !== '' ? (string)$old : null;
+    }
+
+    public function rejectReceipt(int $requestId, string $note): void
+    {
+        $note = mb_substr(trim($note), 0, 255);
+        if ($note === '') {
+            throw new RuntimeException('Tell the member why the receipt was not accepted.');
+        }
+        $upd = $this->db->prepare(
+            "UPDATE private_training_requests
+             SET receipt_status = 'Rejected', receipt_note = :n
+             WHERE request_id = :id AND status = 'Confirmed'
+               AND payment_status = 'Unpaid' AND receipt_status = 'Pending'"
+        );
+        $upd->execute([':n' => $note, ':id' => $requestId]);
+        if ($upd->rowCount() !== 1) {
+            throw new RuntimeException('There is no receipt waiting for review.');
         }
     }
 }
