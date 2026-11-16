@@ -84,17 +84,20 @@ try {
         }
     }
 
+    $recordedBy = (int) ($_SESSION['user_id'] ?? 0);
+    // Native prepares reject a named placeholder used twice in one statement.
     $stmt = $db->prepare(
         "UPDATE event_participants
          SET attendance_status = :status,
-             attendance_recorded_by = :user_id,
+             attendance_recorded_by = :recorded_by,
              attendance_recorded_at = NOW(),
-             updated_by = :user_id
+             updated_by = :updated_by
          WHERE participant_id = :participant_id AND is_voided = 0"
     );
     $stmt->execute([
         ':status' => $status,
-        ':user_id' => (int) $_SESSION['user_id'],
+        ':recorded_by' => $recordedBy > 0 ? $recordedBy : null,
+        ':updated_by' => $recordedBy > 0 ? $recordedBy : null,
         ':participant_id' => $participantId,
     ]);
 
