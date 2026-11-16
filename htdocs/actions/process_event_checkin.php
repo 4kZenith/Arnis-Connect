@@ -195,20 +195,22 @@ try {
     $method = ($faceDescriptorInput !== '' && $storedDescriptor !== '') ? 'FaceGPS' : 'Manual';
     $userId = (int)($_SESSION['user_id'] ?? 0);
 
+    // Native prepares reject a named placeholder used twice in one statement.
     $upd = $db->prepare("
         UPDATE event_participants
         SET attendance_status = :status,
             attendance_remarks = :remarks,
-            attendance_recorded_by = :user_id,
+            attendance_recorded_by = :recorded_by,
             attendance_recorded_at = NOW(),
-            updated_by = :user_id,
+            updated_by = :updated_by,
             updated_at = NOW()
         WHERE participant_id = :pid AND is_voided = 0
     ");
     $upd->execute([
         ':status' => $status,
         ':remarks' => 'Self check-in via ' . $method . ($faceScore !== null ? ' (score ' . round($faceScore * 100) . '%)' : ''),
-        ':user_id' => $userId,
+        ':recorded_by' => $userId > 0 ? $userId : null,
+        ':updated_by' => $userId > 0 ? $userId : null,
         ':pid' => (int)$participant['participant_id'],
     ]);
 
